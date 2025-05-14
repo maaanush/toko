@@ -1,0 +1,21 @@
+
+{
+    "name": "toko",
+    "id": "toko",
+    "api": "1.0.0",
+    "main": "code.js",
+    "ui": "ui.html",
+    "editorType": [
+      "figma"
+    ],
+    "permissions": [
+      "currentuser",
+      "teamlibrary"
+    ],
+    "menu": [
+      {
+        "name": "Manage Variables",
+        "command": "manage-variables"
+      }
+    ]
+  } 
