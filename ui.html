@@ -247,8 +247,8 @@
       display: block;
     }
 
-    /* JSON viewer styles */
-    pre.json-viewer {
+    /* JS Object viewer styles */
+    pre.jsobject-viewer {
       padding: 12px;
       font-size: 11px;
       line-height: 1.5;
@@ -256,12 +256,12 @@
       margin: 0;
     }
 
-    .json-viewer .string { color: #CE9178; }
-    .json-viewer .number { color: #B5CEA8; }
-    .json-viewer .boolean { color: #569CD6; }
-    .json-viewer .null { color: #569CD6; }
-    .json-viewer .key { color: #9CDCFE; }
-    .json-viewer .alias-path { color: #DCDCAA; }
+    .jsobject-viewer .string { color: #CE9178; }
+    .jsobject-viewer .number { color: #B5CEA8; }
+    .jsobject-viewer .boolean { color: #569CD6; }
+    .jsobject-viewer .null { color: #569CD6; }
+    .jsobject-viewer .key { color: #9CDCFE; }
+    .jsobject-viewer .alias-path { color: #DCDCAA; }
     
     /* CSS viewer styles */
     pre.css-viewer {
@@ -338,8 +338,8 @@
           <div id="output-area">
             <!-- Output Area Header with tabs -->
             <div id="output-area-header">
-              <div class="tab-button-group"> <!-- For JSON, CSS, Tailwind tabs -->
-                <button class="tab-button output-tab-button active" data-target="json-code-content">JsObject</button>
+              <div class="tab-button-group"> <!-- For JsObject, CSS, Tailwind tabs -->
+                <button class="tab-button output-tab-button active" data-target="jsobject-code-content">JsObject</button>
                 <button class="tab-button output-tab-button" data-target="css-code-content">CSS</button>
                 <button class="tab-button output-tab-button" data-target="tailwind-code-content">Tailwind</button>
               </div>
@@ -351,10 +351,10 @@
 
             <!-- Output Area Code (scrollable content) -->
             <div id="output-area-code">
-              <!-- JSON Content Pane -->
-              <div id="json-code-content" class="output-code-content active">
-                <p id="json-initial-message" style="padding: 12px; margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
-                <pre class="json-viewer" style="display: none;"></pre> <!-- JSON code will go here -->
+              <!-- JsObject Content Pane -->
+              <div id="jsobject-code-content" class="output-code-content active">
+                <p id="jsobject-initial-message" style="padding: 12px; margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+                <pre class="jsobject-viewer" style="display: none;"></pre> <!-- JS object (formatted as JSON string) will go here -->
               </div>
               <!-- CSS Content Pane (Placeholder) -->
               <div id="css-code-content" class="output-code-content">
@@ -441,7 +441,7 @@
         }
         else if (message.type === 'variables-data') {
           console.log('Received variables data from plugin');
-          variablesData = message.payload.jsonData; // For JSON tab
+          variablesData = message.payload.jsObjectData; // For JsObject tab
           cssOutputData = message.payload.cssString; // Store CSS string
           
           // Check if tailwindString is present in the payload
@@ -673,7 +673,7 @@
           console.log(`Download code button clicked. Active code view: ${activeContentId}`);
           
           // Download the active content
-          if (activeContentId === 'json-code-content' && variablesData) {
+          if (activeContentId === 'jsobject-code-content' && variablesData) {
             downloadAsFile('variables.json', JSON.stringify(variablesData, null, 2));
           } else if (activeContentId === 'css-code-content' && cssOutputData) {
             downloadAsFile('variables.css', cssOutputData);
@@ -689,7 +689,7 @@
           const activeContentId = activeOutputTab ? activeOutputTab.dataset.target : 'none';
           console.log(`Copy to clipboard clicked. Active code view: ${activeContentId}`);
           
-          if (activeContentId === 'json-code-content' && variablesData) {
+          if (activeContentId === 'jsobject-code-content' && variablesData) {
             const replacer = (key, value) => {
               if (value && value.__isAliasPath === true) {
                 return `ALIAS_PLACEHOLDER::${value.path}`;
@@ -773,9 +773,9 @@
     // Simple display of the variables data
     function displayVariablesData() {
       const treeContainer = document.getElementById('variables-tree');
-      const jsonContentDiv = document.getElementById('json-code-content');
-      const initialMessageEl = jsonContentDiv.querySelector('#json-initial-message');
-      const preViewerEl = jsonContentDiv.querySelector('pre.json-viewer');
+      const jsObjectContentDiv = document.getElementById('jsobject-code-content');
+      const initialMessageEl = jsObjectContentDiv.querySelector('#jsobject-initial-message');
+      const preViewerEl = jsObjectContentDiv.querySelector('pre.jsobject-viewer');
       
       if (!variablesData || Object.keys(variablesData).length === 0) {
         treeContainer.innerHTML = '<p>No variables found in this document.</p>';

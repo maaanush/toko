@@ -23,7 +23,7 @@ figma.ui.onmessage = async (msg) => {
       figma.ui.postMessage({ 
         type: 'variables-data', 
         payload: {
-          jsonData: finalPayload,
+          jsObjectData: finalPayload,
           cssString: cssOutput,
           tailwindString: tailwindOutput
         }
@@ -179,7 +179,7 @@ async function buildVariablesPayload() {
   // Phase 3: Generating the Structured Payload
   
   // Objective: Iterate through the processed collections, modes, and variables 
-  // to build the final nested JSON structure.
+  // to build the final nested JS object structure.
   
   const finalPayload = {};
   
