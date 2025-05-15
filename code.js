@@ -147,172 +147,113 @@ async function buildVariablesPayload() {
     // Continue with local variables only
   }
   
-  // Phase 2: Process library variables and collections
-  try {
-    // Step 2.1: Fetch all libraries available to this file
-    const teamLibraries = await figma.teamLibrary.getAvailableLibrariesAsync();
+  // Phase 2: Building Derived Helper Maps
+  
+  // Step 2.1: Populate variableIdToPathNameMap
+  for (const [variableId, variable] of allVariablesMap) {
+    const collection = allCollectionsMap.get(variable.variableCollectionId);
     
-    // Step 2.2: Process each library that's actually used in this file
-    for (const library of teamLibraries) {
-      if (!library.usedInFile) continue;
+    if (collection) {
+      // Construct path by replacing slashes with dots
+      const pathName = `${collection.name}.${variable.name.replace(/\//g, '.')}`;
+      variableIdToPathNameMap.set(variableId, pathName);
+    }
+  }
+  
+  // Phase 3: Generating the Structured Payload
+  
+  // Objective: Iterate through the processed collections, modes, and variables 
+  // to build the final nested JSON structure.
+  
+  const finalPayload = {};
+  
+  // Step 3.1: Iterate through Unique Canonical Collections
+  for (const collection of canonicalCollectionSources.values()) {
+    finalPayload[collection.name] = {};
+    
+    // Step 3.2: For each collection, iterate through its modes
+    for (const mode of collection.modes) {
+      finalPayload[collection.name][mode.name] = {};
+      let currentModePayload = finalPayload[collection.name][mode.name];
       
-      // Step 2.3: Get all variables from this library
-      const libraryVariables = await figma.teamLibrary.getVariablesAsync(library.key);
-      
-      // Collection tracking for this library
-      const processedCollectionIds = new Set();
-      
-      // Step 2.4: Process library variables
-      for (const libraryVar of libraryVariables) {
-        // Skip if we've already processed this variable key (deduplication)
-        if (libraryVar.key && processedVariableKeys.has(libraryVar.key)) {
-          continue;
-        }
-        
-        // Add to variables map and mark as processed
-        allVariablesMap.set(libraryVar.id, libraryVar);
-        if (libraryVar.key) {
-          processedVariableKeys.add(libraryVar.key);
-        }
-        
-        // Step 2.5: Process this variable's collection if not done yet
-        if (!processedCollectionIds.has(libraryVar.variableCollectionId)) {
-          processedCollectionIds.add(libraryVar.variableCollectionId);
+      // Step 3.3: Filter variables belonging to this collection
+      for (const variable of allVariablesMap.values()) {
+        if (variable.variableCollectionId === collection.id) {
+          // This variable belongs to the current collection
           
-          // Fetch collection from the library
-          const libraryCollection = await figma.teamLibrary.getVariableCollectionByIdAsync(
-            library.key,
-            libraryVar.variableCollectionId
+          // Step 3.4: Determine Variable Grouping and Name
+          const nameParts = variable.name.split('/');
+          const varName = nameParts.pop(); // Last part is the variable name
+          let targetGroup = currentModePayload;
+          
+          // Iterate through group parts
+          nameParts.forEach(groupPart => {
+            if (!targetGroup[groupPart]) {
+              targetGroup[groupPart] = {};
+            }
+            targetGroup = targetGroup[groupPart];
+          });
+          
+          // Step 3.5: Get Value or Alias Path
+          const valueOrPath = getValueOrAliasPath(
+            variable.id,
+            mode.modeId,
+            allVariablesMap,
+            allCollectionsMap,
+            variableIdToPathNameMap,
+            figma
           );
           
-          if (libraryCollection) {
-            // Only add to allCollectionsMap if not already present
-            if (!allCollectionsMap.has(libraryCollection.id)) {
-              allCollectionsMap.set(libraryCollection.id, libraryCollection);
-            }
-            
-            // Only add to canonical sources if we don't already have this collection key
-            // This ensures local collections take precedence over library collections
-            if (libraryCollection.key && !canonicalCollectionSources.has(libraryCollection.key)) {
-              canonicalCollectionSources.set(libraryCollection.key, libraryCollection);
-            }
+          if (varName) { // Ensure varName is not undefined
+            targetGroup[varName] = valueOrPath;
           }
         }
       }
     }
-  } catch (error) {
-    console.error("Error processing library variables:", error);
-    // Continue with local variables only
   }
   
-  // Phase 3: Build path names for all variables
-  for (const [varId, variable] of allVariablesMap) {
-    const collection = allCollectionsMap.get(variable.variableCollectionId);
-    if (!collection) continue;
-    
-    // Start with collection name
-    let pathName = collection.name;
-    
-    // Add group/variable name based on variable structure
-    if (variable.resolvedType === 'GROUP') {
-      // This is a group - use just the name
-      pathName += `.${variable.name}`;
-    } else if (variable.name.includes('/')) {
-      // Handle slash-separated group names (older Figma format)
-      const parts = variable.name.split('/');
-      const varName = parts.pop(); // Last part is the variable name
-      const groupName = parts.join('/'); // Remaining parts form the group path
-      pathName += `.${groupName}.${varName}`;
+  return finalPayload;
+}
+
+// Phase 4: Helper Functions
+
+// Step 4.1: getValueOrAliasPath Function
+function getValueOrAliasPath(
+  variableId,
+  modeId,
+  allVariablesMap,
+  allCollectionsMap,
+  variableIdToPathNameMap,
+  figma,
+  visited = new Set() // For cycle detection if you were deep resolving
+) {
+  const variable = allVariablesMap.get(variableId);
+  if (!variable) {
+    return `[Error: Variable ID ${variableId} not found in map]`;
+  }
+
+  const valueInMode = variable.valuesByMode[modeId];
+
+  if (valueInMode && typeof valueInMode === 'object' && 'type' in valueInMode && valueInMode.type === 'VARIABLE_ALIAS') {
+    const aliasTargetId = valueInMode.id;
+    const aliasPath = variableIdToPathNameMap.get(aliasTargetId);
+    if (aliasPath) {
+      return `$${aliasPath}`; // Return the pre-calculated path name with $ prefix
     } else {
-      // Simple variable without explicit group
-      pathName += `.${variable.name}`;
-    }
-    
-    // Store the full path for this variable ID
-    variableIdToPathNameMap.set(varId, pathName);
-  }
-  
-  // Phase 4: Build final structured payload
-  const result = {};
-  
-  // Process each canonical collection (deduplicated)
-  for (const [canonicalKey, collection] of canonicalCollectionSources) {
-    const collectionName = collection.name;
-    result[collectionName] = {};
-    
-    // Process each mode in this collection
-    for (const mode of collection.modes) {
-      const modeId = mode.modeId;
-      const modeName = mode.name;
-      
-      // Initialize this mode in the result
-      result[collectionName][modeName] = {};
-      
-      // Find all variables in this collection
-      const collectionVars = Array.from(allVariablesMap.values())
-        .filter(v => v.variableCollectionId === collection.id);
-      
-      // First, identify groups and organize variables
-      const groupsMap = {}; // Holds variables organized by group
-      const directVariables = {}; // Variables not in a group
-      
-      // First pass: categorize variables by group
-      for (const variable of collectionVars) {
-        if (variable.resolvedType === 'GROUP') {
-          // This is a group definition variable
-          groupsMap[variable.name] = {};
-        } else if (variable.name.includes('/')) {
-          // Variable with slash path indicating group membership
-          const parts = variable.name.split('/');
-          const varName = parts.pop();
-          const groupPath = parts.join('/');
-          
-          // Initialize nested group structure if needed
-          if (!groupsMap[groupPath]) {
-            groupsMap[groupPath] = {};
-          }
-          
-          // Process the variable's value for this mode
-          const valueForMode = variable.valuesByMode?.[modeId];
-          
-          if (valueForMode !== undefined) {
-            if (valueForMode.type === 'VARIABLE_ALIAS') {
-              // For aliases, store the path to the referenced variable
-              const aliasedVarId = valueForMode.id;
-              const aliasPath = variableIdToPathNameMap.get(aliasedVarId) || 'unknown_path';
-              groupsMap[groupPath][varName] = `$${aliasPath}`;
-            } else {
-              // For direct values
-              groupsMap[groupPath][varName] = valueForMode;
-            }
-          }
-        } else {
-          // Direct variable (not in a group)
-          const valueForMode = variable.valuesByMode?.[modeId];
-          
-          if (valueForMode !== undefined) {
-            if (valueForMode.type === 'VARIABLE_ALIAS') {
-              // For aliases, store the path to the referenced variable
-              const aliasedVarId = valueForMode.id;
-              const aliasPath = variableIdToPathNameMap.get(aliasedVarId) || 'unknown_path';
-              directVariables[variable.name] = `$${aliasPath}`;
-            } else {
-              // For direct values
-              directVariables[variable.name] = valueForMode;
-            }
-          }
+      // Fallback: try to construct path on the fly (less ideal, should be pre-populated)
+      const aliasedVar = allVariablesMap.get(aliasTargetId);
+      if (aliasedVar) {
+        const aliasedCol = allCollectionsMap.get(aliasedVar.variableCollectionId);
+        if (aliasedCol) {
+          return `$${aliasedCol.name}.${aliasedVar.name.replace(/\//g, '.')}`;
         }
       }
-      
-      // Add direct variables to the result
-      Object.assign(result[collectionName][modeName], directVariables);
-      
-      // Add grouped variables to the result
-      Object.assign(result[collectionName][modeName], groupsMap);
+      return `[Error: Could not determine path for alias ID ${aliasTargetId}]`;
     }
+  } else {
+    // It's a direct value (e.g., color object, number, string)
+    return valueInMode;
   }
-  
-  return result;
 }
 
 // Notify UI that the plugin is ready
