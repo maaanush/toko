@@ -74,6 +74,79 @@ async function buildVariablesPayload() {
     }
   }
   
+  // Step 1.2: Process Library Collections and Their Variables
+  try {
+    // Get available library variable collections (metadata)
+    const libraryCollectionMetas = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+    
+    // Process each library collection
+    for (const libColMeta of libraryCollectionMetas) {
+      // Deduplication Check (Collections)
+      if (canonicalCollectionSources.has(libColMeta.key)) {
+        // This library collection corresponds to an already processed local collection
+        // We prefer the local version as it's more "live" for the current file
+        const existingCollection = canonicalCollectionSources.get(libColMeta.key);
+        
+        // We'll map this library collection's ID to the existing local collection's ID
+        // to ensure variables from this library are imported and added if not present via local processing
+        
+        // Note: We don't need to do anything special here, as we're using the variable.key for
+        // deduplication, not the collection ID. Variables will be handled in the next loop.
+      } else {
+        // This is a distinct library collection not originating from a local one in this file
+        // We need to fetch its full VariableCollection object
+        
+        // Strategy: Import one variable from it to get a variableCollectionId, then fetch the collection
+        const tempLibVars = await figma.teamLibrary.getVariablesInLibraryCollectionAsync(libColMeta.key);
+        
+        if (tempLibVars.length > 0) {
+          try {
+            const anImportedVar = await figma.variables.importVariableByKeyAsync(tempLibVars[0].key);
+            const fullLibraryCollection = await figma.variables.getVariableCollectionByIdAsync(anImportedVar.variableCollectionId);
+            
+            if (fullLibraryCollection) {
+              canonicalCollectionSources.set(fullLibraryCollection.key, fullLibraryCollection);
+              allCollectionsMap.set(fullLibraryCollection.id, fullLibraryCollection);
+            }
+          } catch (e) {
+            console.error(`Error importing variable to fetch collection details for ${libColMeta.name}:`, e);
+          }
+        }
+      }
+      
+      // Fetch all variables metadata from this library collection
+      const libraryVariablesMeta = await figma.teamLibrary.getVariablesInLibraryCollectionAsync(libColMeta.key);
+      
+      // Process each library variable
+      for (const libVarMeta of libraryVariablesMeta) {
+        // Deduplication Check (Variables)
+        if (processedVariableKeys.has(libVarMeta.key)) {
+          // This variable has already been processed. Skip.
+          continue;
+        }
+        
+        processedVariableKeys.add(libVarMeta.key);
+        
+        // Import the library variable to get its full Variable object and local ID
+        try {
+          const importedVariable = await figma.variables.importVariableByKeyAsync(libVarMeta.key);
+          allVariablesMap.set(importedVariable.id, importedVariable);
+          
+          // Ensure its collection is in allCollectionsMap if somehow missed
+          if (!allCollectionsMap.has(importedVariable.variableCollectionId)) {
+            const col = await figma.variables.getVariableCollectionByIdAsync(importedVariable.variableCollectionId);
+            if (col) allCollectionsMap.set(col.id, col);
+          }
+        } catch (importError) {
+          console.error(`Error importing library variable ${libVarMeta.name} (key: ${libVarMeta.key}):`, importError);
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error processing library collections:", error);
+    // Continue with local variables only
+  }
+  
   // Phase 2: Process library variables and collections
   try {
     // Step 2.1: Fetch all libraries available to this file

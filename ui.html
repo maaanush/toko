@@ -290,7 +290,6 @@
   <script>
     // Global state
     let variablesData = null;
-    let selectedTreeItem = null;
 
     // Document ready event
     document.addEventListener('DOMContentLoaded', function () {
@@ -330,7 +329,7 @@
           console.log('Received variables data');
           variablesData = message.payload;
           hideSpinner();
-          buildVariablesTree();
+          displayVariablesData();
         }
         else if (message.type === 'error') {
           console.error('Error:', message.message);
@@ -350,188 +349,29 @@
       if (spinner) spinner.style.display = 'none';
     }
 
-    function buildVariablesTree() {
+    // Simple display of the variables data
+    function displayVariablesData() {
       const treeContainer = document.getElementById('variables-tree');
-      treeContainer.innerHTML = '';
+      const outputArea = document.getElementById('variables-output');
       
       if (!variablesData || Object.keys(variablesData).length === 0) {
         treeContainer.innerHTML = '<p>No variables found in this document.</p>';
         return;
       }
       
-      // Create tree structure
+      // Display a simple list of collections in the tree area
+      let html = '<ul>';
       for (const collectionName in variablesData) {
-        const collectionItem = createTreeItem(collectionName, 'collection');
-        treeContainer.appendChild(collectionItem);
-        
-        const collectionChildren = collectionItem.querySelector('.tree-item-children');
-        const collection = variablesData[collectionName];
-        
-        for (const modeName in collection) {
-          const modeItem = createTreeItem(modeName, 'mode');
-          collectionChildren.appendChild(modeItem);
-          
-          const modeChildren = modeItem.querySelector('.tree-item-children');
-          const mode = collection[modeName];
-          
-          // First pass: find all groups and direct variables
-          const groups = {};
-          const directVariables = {};
-          
-          for (const key in mode) {
-            if (typeof mode[key] === 'object' && mode[key] !== null && !Array.isArray(mode[key])) {
-              // This is a group
-              groups[key] = mode[key];
-            } else {
-              // This is a direct variable
-              directVariables[key] = mode[key];
-            }
-          }
-          
-          // Add direct variables first
-          for (const varName in directVariables) {
-            const varItem = createTreeItem(varName, 'variable');
-            modeChildren.appendChild(varItem);
-          }
-          
-          // Add groups
-          for (const groupName in groups) {
-            const groupItem = createTreeItem(groupName, 'group');
-            modeChildren.appendChild(groupItem);
-            
-            const groupChildren = groupItem.querySelector('.tree-item-children');
-            const group = groups[groupName];
-            
-            for (const varName in group) {
-              const varItem = createTreeItem(varName, 'variable');
-              groupChildren.appendChild(varItem);
-            }
-          }
-        }
+        html += `<li>${collectionName}</li>`;
       }
+      html += '</ul>';
+      treeContainer.innerHTML = html;
       
-      // Add click handlers
-      addTreeItemHandlers();
-    }
-
-    function createTreeItem(name, type) {
-      const item = document.createElement('div');
-      item.className = 'tree-item';
-      item.dataset.type = type;
-      item.dataset.name = name;
-      
-      const header = document.createElement('div');
-      header.className = 'tree-item-header';
-      
-      const toggle = document.createElement('span');
-      toggle.className = 'tree-item-toggle';
-      toggle.textContent = '►';
-      header.appendChild(toggle);
-      
-      const label = document.createElement('span');
-      label.className = 'tree-item-label';
-      label.textContent = name;
-      header.appendChild(label);
-      
-      const children = document.createElement('div');
-      children.className = 'tree-item-children';
-      
-      item.appendChild(header);
-      item.appendChild(children);
-      
-      return item;
-    }
-
-    function addTreeItemHandlers() {
-      const treeItems = document.querySelectorAll('.tree-item-header');
-      
-      treeItems.forEach(item => {
-        item.addEventListener('click', (e) => {
-          e.stopPropagation();
-          
-          const parent = item.parentElement;
-          const toggle = item.querySelector('.tree-item-toggle');
-          const children = parent.querySelector('.tree-item-children');
-          
-          // Toggle the item's children
-          toggle.classList.toggle('open');
-          children.classList.toggle('open');
-          
-          // Set as selected
-          if (selectedTreeItem) {
-            selectedTreeItem.classList.remove('selected');
-          }
-          item.classList.add('selected');
-          selectedTreeItem = item;
-          
-          // Show details in output area
-          showItemDetails(parent);
-        });
-      });
-    }
-
-    function showItemDetails(item) {
-      const type = item.dataset.type;
-      const name = item.dataset.name;
-      const outputArea = document.getElementById('variables-output');
-      
-      // Build the path to this item
-      let path = [];
-      let current = item;
-      
-      while (current && current.dataset && current.dataset.name) {
-        path.unshift(current.dataset.name);
-        // Get parent tree item
-        current = current.parentElement.closest('.tree-item');
-      }
-      
-      // Get the data
-      let data = variablesData;
-      for (const segment of path) {
-        if (data) data = data[segment];
-      }
-      
-      // Render the output
-      if (data) {
-        outputArea.innerHTML = `
-          <h3>${path.join(' → ')}</h3>
-          <pre class="json-viewer">${formatJSON(data, type)}</pre>
-        `;
-      } else {
-        outputArea.innerHTML = `<p>No data available for ${path.join(' → ')}</p>`;
-      }
-    }
-
-    function formatJSON(data, type) {
-      if (typeof data !== 'object' || data === null) {
-        if (typeof data === 'string' && data.startsWith('$')) {
-          // This is an alias path
-          return `<span class="alias-path">${data}</span>`;
-        } else if (typeof data === 'string') {
-          return `<span class="string">"${data}"</span>`;
-        } else if (typeof data === 'number') {
-          return `<span class="number">${data}</span>`;
-        } else if (typeof data === 'boolean') {
-          return `<span class="boolean">${data}</span>`;
-        } else if (data === null) {
-          return `<span class="null">null</span>`;
-        }
-        return String(data);
-      }
-      
-      if (Array.isArray(data)) {
-        const items = data.map(item => formatJSON(item, type)).join(',\n');
-        return `[\n  ${items.replace(/\n/g, '\n  ')}\n]`;
-      }
-      
-      const keys = Object.keys(data);
-      if (keys.length === 0) return '{}';
-      
-      const items = keys.map(key => {
-        return `<span class="key">"${key}"</span>: ${formatJSON(data[key], type)}`;
-      }).join(',\n');
-      
-      return `{\n  ${items.replace(/\n/g, '\n  ')}\n}`;
+      // Display the full JSON data in the output area
+      outputArea.innerHTML = `
+        <h3>Variables Data</h3>
+        <pre class="json-viewer">${JSON.stringify(variablesData, null, 2)}</pre>
+      `;
     }
   </script>
 </body>
