@@ -51,7 +51,8 @@
         gap: 2px; /* Gap applied here, as in Figma's inner Frame 7 */
     }
 
-    .tab-wrapper .tab-button { /* Specificity remains sufficient */
+    /* Base styles for all tab buttons */
+    .tab-button {
       padding: var(--tab-button-padding);
       border-radius: var(--tab-button-radius);
       font-family: var(--tab-button-font);
@@ -68,14 +69,16 @@
       transition: background-color 0.2s, color 0.2s, opacity 0.2s;
     }
 
-    .tab-wrapper .tab-button.active { /* Increased specificity */
+    /* Active state for all tab buttons */
+    .tab-button.active {
       color: var(--tab-active-text-color);
       opacity: var(--tab-active-opacity);
       background-color: var(--tab-active-bg);
     }
 
-    .tab-wrapper .tab-button:hover:not(.active) { /* Increased specificity */
-       /* Use active style for hover based on Figma */
+    /* Hover state for all non-active tab buttons */
+    .tab-button:hover:not(.active) {
+      /* Use active style for hover based on Figma */
       color: var(--tab-active-text-color);
       opacity: var(--tab-active-opacity);
       background-color: var(--tab-active-bg);
