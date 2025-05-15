@@ -250,8 +250,8 @@
     /* JSON viewer styles */
     pre.json-viewer {
       padding: 12px;
-      font-size: 12px;
-      line-height: 1.6;
+      font-size: 11px;
+      line-height: 1.5;
       color: var(--figma-color-text);
       margin: 0;
     }
@@ -262,6 +262,26 @@
     .json-viewer .null { color: #569CD6; }
     .json-viewer .key { color: #9CDCFE; }
     .json-viewer .alias-path { color: #DCDCAA; }
+    
+    /* CSS viewer styles */
+    pre.css-viewer {
+      padding: 12px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--figma-color-text);
+      margin: 0;
+      white-space: pre-wrap; /* Allow wrapping */
+      word-break: break-all; /* Break long words/lines */
+    }
+
+    /* Added styles for CSS syntax highlighting */
+    .css-viewer .css-selector { color: #DCDCAA; } /* Yellowish, for selectors like :root, .class-name */
+    .css-viewer .css-brace { color: #FFD700; } /* Gold, for { and } */
+    .css-viewer .css-property { color: #9CDCFE; } /* Light blue, for CSS property names like --my-variable */
+    .css-viewer .css-value { color: #CE9178; }    /* Orange, for plain values like #FFF, 12px */
+    .css-viewer .css-var-keyword { color: #C586C0; } /* Purple, for the 'var' keyword */
+    .css-viewer .css-parenthesis { color: #FFD700; } /* Gold, for the ( and ) in var() */
+    .css-viewer .css-var-content { color: #4EC9B0; } /* Teal, for the content inside var() e.g. --another-variable */
   </style>
 </head>
 <body>
@@ -295,7 +315,7 @@
             <!-- Output Area Header with tabs -->
             <div id="output-area-header">
               <div class="tab-button-group"> <!-- For JSON, CSS, Tailwind tabs -->
-                <button class="tab-button output-tab-button active" data-target="json-code-content">JSON</button>
+                <button class="tab-button output-tab-button active" data-target="json-code-content">JsObject</button>
                 <button class="tab-button output-tab-button" data-target="css-code-content">CSS</button>
                 <button class="tab-button output-tab-button" data-target="tailwind-code-content">Tailwind</button>
               </div>
@@ -355,6 +375,7 @@
   <script>
     // Global state
     let variablesData = null;
+    let cssOutputData = null; // Store CSS output
 
     // Document ready event
     document.addEventListener('DOMContentLoaded', function () {
@@ -394,10 +415,18 @@
           parent.postMessage({ pluginMessage: { type: 'fetch-variables' } }, '*');
         }
         else if (message.type === 'variables-data') {
-          console.log('Received variables data');
-          variablesData = message.payload;
+          console.log('Received variables data (JSON and CSS)');
+          variablesData = message.payload.jsonData; // For JSON tab
+          cssOutputData = message.payload.cssString; // Store CSS string
           hideSpinner();
-          displayVariablesData();
+          displayVariablesData(); // This updates JSON tab
+
+          // If CSS tab is already active, update its content
+          const cssContentDiv = document.getElementById('css-code-content');
+          const activeOutputTab = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
+          if (activeOutputTab && activeOutputTab.dataset.target === 'css-code-content') {
+            displayCssData(cssContentDiv);
+          }
         }
         else if (message.type === 'error') {
           console.error('Error:', message.message);
@@ -415,6 +444,77 @@
     function hideSpinner() {
       const spinner = document.querySelector('.spinner');
       if (spinner) spinner.style.display = 'none';
+    }
+
+    // Escape HTML content to prevent XSS
+    function escapeHtml(unsafe) {
+      if (typeof unsafe !== 'string') return '';
+      return unsafe
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+    }
+
+    // Display CSS data in the CSS tab
+    function displayCssData(containerElement) {
+      if (cssOutputData) {
+        const lines = cssOutputData.split('\n');
+        let htmlOutput = '';
+        lines.forEach(line => {
+          const trimmedLine = line.trim();
+          if (trimmedLine === '') {
+            htmlOutput += '\n'; // Preserve empty lines
+            return;
+          }
+
+          const leadingSpace = line.substring(0, line.indexOf(trimmedLine));
+
+          // Match selectors like :root { or .class-name {
+          const selectorMatch = trimmedLine.match(/^([^{]+)\s*\{\s*$/);
+          if (selectorMatch) {
+            htmlOutput += `${leadingSpace}<span class="css-selector">${escapeHtml(selectorMatch[1].trim())}</span> <span class="css-brace">{</span>\n`;
+            return;
+          }
+
+          // Match closing brace }
+          if (trimmedLine === '}') {
+            htmlOutput += `${leadingSpace}<span class="css-brace">}</span>\n`;
+            return;
+          }
+          
+          // Match CSS properties --prop: value;
+          const propMatch = trimmedLine.match(/^(--[^:]+)\s*:\s*(.+);$/);
+          if (propMatch) {
+            const property = propMatch[1].trim();
+            let valueString = propMatch[2].trim();
+            let valueHtml = '';
+
+            const varMatch = valueString.match(/^var\s*\((--[^)]+)\)$/);
+            if (varMatch) {
+              const varContent = varMatch[1].trim();
+              valueHtml = `<span class="css-var-keyword">var</span>` +
+                          `<span class="css-parenthesis">(</span>` +
+                          `<span class="css-var-content">${escapeHtml(varContent)}</span>` +
+                          `<span class="css-parenthesis">)</span>`;
+            } else {
+              // You could add more specific value type styling here later if needed
+              // For now, all non-var values get 'css-value'
+              valueHtml = `<span class="css-value">${escapeHtml(valueString)}</span>`;
+            }
+            htmlOutput += `${leadingSpace}<span class="css-property">${escapeHtml(property)}</span>: ${valueHtml};\n`;
+            return;
+          }
+          
+          // Fallback for lines not matched by the above (e.g., comments if any, or malformed lines)
+          htmlOutput += escapeHtml(line) + '\n';
+        });
+        // Make sure the final output doesn't have an extra trailing newline if the input didn't
+        containerElement.innerHTML = `<pre class="css-viewer">${htmlOutput.replace(/\n$/, '')}</pre>`;
+      } else {
+        containerElement.innerHTML = '<p style="padding: 12px; margin: 0;">CSS output will appear here.</p>';
+      }
     }
 
     // Setup tabs for the output area
@@ -436,6 +536,11 @@
           const targetContent = document.getElementById(targetId);
           if (targetContent) {
             targetContent.classList.add('active');
+            
+            // If switching to CSS tab, display the CSS data
+            if (targetId === 'css-code-content') {
+              displayCssData(targetContent);
+            }
           }
         });
       });
@@ -449,7 +554,15 @@
           const activeOutputTab = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
           const activeContentId = activeOutputTab ? activeOutputTab.dataset.target : 'none';
           console.log(`Download code button clicked. Active code view: ${activeContentId}`);
-          // TODO: Implement actual download logic
+          
+          // Download the active content
+          if (activeContentId === 'json-code-content' && variablesData) {
+            downloadAsFile('variables.json', JSON.stringify(variablesData, null, 2));
+          } else if (activeContentId === 'css-code-content' && cssOutputData) {
+            downloadAsFile('variables.css', cssOutputData);
+          } else if (activeContentId === 'tailwind-code-content') {
+            // TODO: Implement Tailwind download when available
+          }
         });
       }
 
@@ -458,9 +571,59 @@
           const activeOutputTab = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
           const activeContentId = activeOutputTab ? activeOutputTab.dataset.target : 'none';
           console.log(`Copy to clipboard clicked. Active code view: ${activeContentId}`);
-          // TODO: Implement copy to clipboard logic
+          
+          // Copy the active content
+          if (activeContentId === 'json-code-content' && variablesData) {
+            copyToClipboard(JSON.stringify(variablesData, null, 2));
+          } else if (activeContentId === 'css-code-content' && cssOutputData) {
+            copyToClipboard(cssOutputData);
+          } else if (activeContentId === 'tailwind-code-content') {
+            // TODO: Implement Tailwind copy when available
+          }
         });
       }
+    }
+
+    // Helper function to download content as a file
+    function downloadAsFile(filename, content) {
+      const element = document.createElement('a');
+      element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+      element.setAttribute('download', filename);
+      element.style.display = 'none';
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    }
+
+    // Helper function to copy content to clipboard
+    function copyToClipboard(content) {
+      const textarea = document.createElement('textarea');
+      textarea.value = content;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'absolute';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      
+      // Show a temporary notification
+      const notification = document.createElement('div');
+      notification.style.position = 'fixed';
+      notification.style.bottom = '20px';
+      notification.style.left = '50%';
+      notification.style.transform = 'translateX(-50%)';
+      notification.style.padding = '8px 16px';
+      notification.style.backgroundColor = '#333';
+      notification.style.color = '#fff';
+      notification.style.borderRadius = '4px';
+      notification.style.zIndex = '1000';
+      notification.textContent = 'Copied to clipboard!';
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 2000);
     }
 
     // Simple display of the variables data

@@ -12,10 +12,17 @@ figma.clientStorage.getAsync('accessToken').then(accessToken => {
 figma.ui.onmessage = async (msg) => {
   if (msg.type === 'fetch-variables') {
     try {
-      const payload = await buildVariablesPayload();
+      const { finalPayload, allVariablesMap, allCollectionsMap } = await buildVariablesPayload();
+      
+      // Generate CSS string from the final payload
+      const cssOutput = generateCssVariablesString(finalPayload, allVariablesMap, allCollectionsMap);
+      
       figma.ui.postMessage({ 
         type: 'variables-data', 
-        payload 
+        payload: {
+          jsonData: finalPayload,
+          cssString: cssOutput
+        }
       });
     } catch (error) {
       figma.ui.postMessage({ 
@@ -259,7 +266,7 @@ async function buildVariablesPayload() {
     }
   }
   
-  return finalPayload;
+  return { finalPayload, allVariablesMap, allCollectionsMap };
 }
 
 // Phase 4: Helper Functions
@@ -376,6 +383,291 @@ function getValueOrAliasPath(
     
     return valueInMode;
   }
+}
+
+// CSS Variables Generation Helper Functions
+
+/**
+ * Converts a string to kebab-case
+ * @param {string} str - The string to convert
+ * @return {string} Kebab-cased string
+ */
+function toKebabCase(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/\//g, '-') // Replace slashes with hyphens first
+    .replace(/[\s_]+/g, '-') // Replace spaces and underscores with hyphens
+    .replace(/([a-z])([A-Z])/g, '$1-$2') // camelCase to kebab-case
+    .toLowerCase();
+}
+
+/**
+ * Generates a CSS variable name
+ * @param {string[]} variablePathParts - Parts of the variable path
+ * @param {string} collectionName - The collection name
+ * @param {boolean} isCanonicalName - Whether to include the collection name prefix
+ * @return {string} The CSS variable name
+ */
+function generateCssVarName(variablePathParts, collectionName, isCanonicalName) {
+  const cleanedPathParts = variablePathParts.map(part => {
+    // Convert part to string to ensure .replace method is available
+    const partStr = String(part);
+    return partStr.replace(/BRACKET_OPEN(\w+)BRACKET_CLOSE/g, '$1');
+  });
+  const kebabPath = cleanedPathParts.map(p => toKebabCase(p)).join('-');
+  
+  if (isCanonicalName) {
+    const kebabCollectionName = toKebabCase(collectionName);
+    return `--${kebabCollectionName}-${kebabPath}`;
+  }
+  return `--${kebabPath}`;
+}
+
+/**
+ * Formats a value for CSS, applying appropriate units
+ * @param {*} value - The value to format
+ * @param {string} variableName - The variable name
+ * @return {string} The formatted CSS value
+ */
+function formatCssValue(value, variableName, pathContext) {
+  if (typeof value === 'number') {
+    const lowerVarName = variableName ? toKebabCase(variableName) : '';
+    const unitlessKeywords = ['opacity', 'font-weight', 'order', 'z-index', 'scale', 'fw', 'op', 'weight'];
+    
+    // Special case for font-weight values (which are often just numbers like 400, 500, 600)
+    if (pathContext && 
+        (pathContext.includes('font-weight') || 
+         (pathContext.includes('typography') && pathContext.includes('weight')))) {
+      return String(value);
+    }
+    
+    // Also handle standard font weight values
+    if (typeof value === 'number' && 
+        [100, 200, 300, 400, 500, 600, 700, 800, 900].includes(value) && 
+        /^[0-9]+$/.test(variableName)) {
+      return String(value);
+    }
+    
+    let isUnitless = false;
+    for (const keyword of unitlessKeywords) {
+      if (lowerVarName.includes(keyword)) {
+        isUnitless = true;
+        break;
+      }
+    }
+
+    if (isUnitless) {
+      return String(value);
+    } else {
+      return `${value}px`; // All numbers including lineHeight get px units
+    }
+  }
+  
+  // If it's a string (like a color or font name)
+  if (typeof value === 'string') {
+    // Ensure strings that aren't color functions (like font names with spaces) are quoted
+    if (!value.match(/^(#|rgb|hsl|var\(--)/) && value.includes(' ')) {
+      return `"${value}"`;
+    }
+    return value;
+  }
+  
+  return String(value); // Fallback for any other type
+}
+
+/**
+ * Parse a Figma variable path into collection name and path parts
+ * @param {string} figmaPath - The Figma path notation
+ * @return {Object} Object with targetCollectionName and targetAliasPathParts
+ */
+function parseFigmaPath(figmaPath) {
+  const parts = figmaPath.split('.');
+  const targetCollectionName = parts.shift(); // First part is collection
+  // Handle ["NUM"] notation if present in parts
+  const targetAliasPathParts = parts.map(part => part.replace(/\["(\w+)"\]$/, '$1'));
+  return { targetCollectionName, targetAliasPathParts };
+}
+
+/**
+ * Generate a CSS string from Figma variables
+ * @param {Object} payload - The variables payload
+ * @param {Map} allVariablesMap - Map of variable IDs to variables
+ * @param {Map} allCollectionsMap - Map of collection IDs to collections
+ * @return {string} The CSS string
+ */
+function generateCssVariablesString(payload, allVariablesMap, allCollectionsMap) {
+  let cssString = "";
+  
+  // Collection of all CSS variables by their scope
+  const scopeVariables = {
+    root: [], // Variables for :root
+    themes: {} // Variables for each theme (collection-mode)
+  };
+  
+  // Function to process variables object recursively
+  function processVariablesObject(obj, collectionName, collectionId, modeName, pathPrefixParts, isCanonicalContext) {
+    const result = [];
+    
+    for (const key of Object.keys(obj)) {
+      const value = obj[key];
+      const currentPathParts = [...pathPrefixParts, key];
+      
+      // If it's an alias
+      if (value && typeof value === 'object' && value.__isAliasPath === true) {
+        // Parse the alias path
+        const { targetCollectionName, targetAliasPathParts } = parseFigmaPath(value.path);
+        
+        // Determine if it's a reference to the same collection
+        const isSameCollection = targetCollectionName === collectionName;
+        
+        // Create the CSS variable name for this variable itself - always without collection prefix
+        const cssVarName = generateCssVarName(currentPathParts, collectionName, false);
+        
+        // Generate the target variable name for the var() reference
+        const targetVarName = generateCssVarName(
+          targetAliasPathParts,
+          targetCollectionName,
+          !isSameCollection || isCanonicalContext // Use canonical name if target is from a different collection
+        );
+        
+        // Create the CSS declaration
+        result.push(`  ${cssVarName}: var(${targetVarName});`);
+      }
+      // If it's a direct value (not an object or is a special formatted object)
+      else if (value === null || typeof value !== 'object' || 
+               (value && (value.__isAliasPathError || Object.prototype.toString.call(value) === '[object Object]' && 
+                Object.keys(value).length === 0))) {
+        // Always use false for isCanonicalName to ensure no collection prefix on LHS
+        const cssVarName = generateCssVarName(currentPathParts, collectionName, false);
+        // Create a context string for parent path detection
+        const pathContext = currentPathParts.map(p => toKebabCase(p)).join('-');
+        
+        // Special handling for numeric font weights
+        let cssVarValue;
+        if (pathContext.includes('typography-font') && pathContext.includes('weight') && 
+            typeof value === 'number' && [100, 200, 300, 400, 500, 600, 700, 800, 900].includes(value)) {
+          cssVarValue = String(value); // Ensure font-weight values are unitless
+        } else {
+          cssVarValue = formatCssValue(value, key, pathContext);
+        }
+        result.push(`  ${cssVarName}: ${cssVarValue};`);
+      }
+      // If it's a nested group object
+      else if (typeof value === 'object') {
+        // Recursively process the nested group
+        const nestedResult = processVariablesObject(
+          value, 
+          collectionName, 
+          collectionId, 
+          modeName, 
+          currentPathParts, 
+          isCanonicalContext
+        );
+        result.push(...nestedResult);
+      }
+    }
+    
+    return result;
+  }
+  
+  // Analyze collections and modes
+  const collectionNames = Object.keys(payload);
+  const numCollections = collectionNames.length;
+  let singleCollectionName = numCollections === 1 ? collectionNames[0] : null;
+  let modesForSingleCollection = singleCollectionName ? Object.keys(payload[singleCollectionName]) : [];
+  let numModesInSingleCollection = modesForSingleCollection.length;
+
+  // Helper to get collectionId
+  function getCollectionIdByName(name) {
+    for (const [id, col] of allCollectionsMap.entries()) {
+      if (col.name === name) return id;
+    }
+    return null; 
+  }
+  
+  // Process variables based on collections and modes count
+  if (numCollections === 1) {
+    const collName = singleCollectionName;
+    const collId = getCollectionIdByName(collName);
+
+    if (numModesInSingleCollection === 1) {
+      // Scenario: 1 Collection, 1 Mode -> All to :root
+      const modeName = modesForSingleCollection[0];
+      const modeObject = payload[collName][modeName];
+      const rootVars = processVariablesObject(
+        modeObject, collName, collId, modeName, [], false // LHS always short name
+      );
+      scopeVariables.root.push(...rootVars);
+    } else if (numModesInSingleCollection === 2) {
+      // Scenario: 1 Collection, 2 Modes -> Mode 1 to :root, Mode 2 to class
+      const mode1Name = modesForSingleCollection[0];
+      const mode1Object = payload[collName][mode1Name];
+      const rootVars = processVariablesObject(
+        mode1Object, collName, collId, mode1Name, [], false // LHS always short name
+      );
+      scopeVariables.root.push(...rootVars);
+
+      const mode2Name = modesForSingleCollection[1];
+      const mode2Object = payload[collName][mode2Name];
+      const themeClassName = `${toKebabCase(collName)}-${toKebabCase(mode2Name)}`;
+      const themeVars = processVariablesObject(
+        mode2Object, collName, collId, mode2Name, [], false // LHS always short name
+      );
+      if (themeVars.length > 0) {
+        scopeVariables.themes[themeClassName] = themeVars;
+      }
+    } else { // numModesInSingleCollection > 2
+      // Scenario: 1 Collection, >2 Modes -> All to classes, no :root
+      for (const modeName of modesForSingleCollection) {
+        const modeObject = payload[collName][modeName];
+        const themeClassName = `${toKebabCase(collName)}-${toKebabCase(modeName)}`;
+        const themeVars = processVariablesObject(
+          modeObject, collName, collId, modeName, [], false // LHS always short name
+        );
+        if (themeVars.length > 0) {
+          if (!scopeVariables.themes[themeClassName]) scopeVariables.themes[themeClassName] = [];
+          scopeVariables.themes[themeClassName].push(...themeVars);
+        }
+      }
+    }
+  } else { // numCollections > 1
+    // Scenario: Multiple Collections -> All to classes, no :root
+    for (const collName of collectionNames) {
+      const collId = getCollectionIdByName(collName);
+      const modesForCurrentCollection = Object.keys(payload[collName]);
+      for (const modeName of modesForCurrentCollection) {
+        const modeObject = payload[collName][modeName];
+        const themeClassName = `${toKebabCase(collName)}-${toKebabCase(modeName)}`;
+        const themeVars = processVariablesObject(
+          modeObject, collName, collId, modeName, [], false // LHS always short name
+        );
+        if (themeVars.length > 0) {
+          if (!scopeVariables.themes[themeClassName]) scopeVariables.themes[themeClassName] = [];
+          scopeVariables.themes[themeClassName].push(...themeVars);
+        }
+      }
+    }
+  }
+  
+  // Build the CSS string
+  
+  // Add :root variables
+  if (scopeVariables.root.length > 0) {
+    cssString += ":root {\n";
+    cssString += scopeVariables.root.join('\n');
+    cssString += "\n}\n\n";
+  }
+  
+  // Add theme class variables
+  for (const themeName in scopeVariables.themes) {
+    if (scopeVariables.themes[themeName].length > 0) {
+      cssString += `.${themeName} {\n`;
+      cssString += scopeVariables.themes[themeName].join('\n');
+      cssString += "\n}\n\n";
+    }
+  }
+  
+  return cssString;
 }
 
 // Notify UI that the plugin is ready
