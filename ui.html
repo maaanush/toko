@@ -207,14 +207,50 @@
     }
 
     /* JSON viewer styles */
-    pre.json-viewer {
+    /* Output Area Header styles */
+    #output-area-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      flex-shrink: 0;
+    }
+
+    /* Action buttons group */
+    .action-button-group {
+      display: flex;
+      gap: 2px;
+    }
+
+    /* Output Area Code styles */
+    #output-area-code {
+      flex-grow: 1;
+      min-height: 0;
       background-color: #1E1E1E;
       border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    /* Output code content styles */
+    .output-code-content {
+      display: none;
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+    }
+
+    .output-code-content.active {
+      display: block;
+    }
+
+    /* JSON viewer styles */
+    pre.json-viewer {
       padding: 12px;
-      overflow: auto;
       font-size: 12px;
       line-height: 1.5;
       color: var(--figma-color-text);
+      margin: 0;
     }
 
     .json-viewer .string { color: #CE9178; }
@@ -253,8 +289,34 @@
             </div>
           </div>
           <div id="output-area">
-            <div id="variables-output">
-              <p>Select a collection, mode, or variable in the tree to view details.</p>
+            <!-- Output Area Header with tabs -->
+            <div id="output-area-header">
+              <div class="tab-button-group"> <!-- For JSON, CSS, Tailwind tabs -->
+                <button class="tab-button output-tab-button active" data-target="json-code-content">JSON</button>
+                <button class="tab-button output-tab-button" data-target="css-code-content">CSS</button>
+                <button class="tab-button output-tab-button" data-target="tailwind-code-content">Tailwind</button>
+              </div>
+              <div class="action-button-group"> <!-- For Download and Copy buttons -->
+                <button class="tab-button" id="download-code-btn">Download code</button>
+                <button class="tab-button" id="copy-code-btn">Copy to clipboard</button>
+              </div>
+            </div>
+
+            <!-- Output Area Code (scrollable content) -->
+            <div id="output-area-code">
+              <!-- JSON Content Pane -->
+              <div id="json-code-content" class="output-code-content active">
+                <p id="json-initial-message" style="padding: 12px; margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+                <pre class="json-viewer" style="display: none;"></pre> <!-- JSON code will go here -->
+              </div>
+              <!-- CSS Content Pane (Placeholder) -->
+              <div id="css-code-content" class="output-code-content">
+                <p style="padding: 12px; margin: 0;">CSS output will appear here.</p>
+              </div>
+              <!-- Tailwind Content Pane (Placeholder) -->
+              <div id="tailwind-code-content" class="output-code-content">
+                <p style="padding: 12px; margin: 0;">Tailwind output will appear here.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -293,8 +355,8 @@
 
     // Document ready event
     document.addEventListener('DOMContentLoaded', function () {
-      // Tab switching logic
-      const tabButtons = document.querySelectorAll('.tab-button');
+      // Main tab switching logic
+      const tabButtons = document.querySelectorAll('.tab-wrapper .tab-button');
       const tabContents = document.querySelectorAll('.tab-content');
 
       tabButtons.forEach(button => {
@@ -314,6 +376,9 @@
           }
         });
       });
+      
+      // Setup the output area tabs
+      setupOutputAreaTabs();
 
       // Message handler from the plugin
       window.onmessage = event => {
@@ -349,13 +414,64 @@
       if (spinner) spinner.style.display = 'none';
     }
 
+    // Setup tabs for the output area
+    function setupOutputAreaTabs() {
+      const outputTabButtons = document.querySelectorAll('#output-area-header .tab-button-group .tab-button');
+      const outputTabContents = document.querySelectorAll('#output-area-code .output-code-content');
+
+      outputTabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          // Deactivate all output tabs and hide all output content
+          outputTabButtons.forEach(btn => btn.classList.remove('active'));
+          outputTabContents.forEach(content => content.classList.remove('active'));
+
+          // Activate the clicked button
+          button.classList.add('active');
+
+          // Show the target content
+          const targetId = button.getAttribute('data-target');
+          const targetContent = document.getElementById(targetId);
+          if (targetContent) {
+            targetContent.classList.add('active');
+          }
+        });
+      });
+
+      // Setup action buttons
+      const downloadBtn = document.getElementById('download-code-btn');
+      const copyBtn = document.getElementById('copy-code-btn');
+
+      if (downloadBtn) {
+        downloadBtn.addEventListener('click', () => {
+          const activeOutputTab = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
+          const activeContentId = activeOutputTab ? activeOutputTab.dataset.target : 'none';
+          console.log(`Download code button clicked. Active code view: ${activeContentId}`);
+          // TODO: Implement actual download logic
+        });
+      }
+
+      if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+          const activeOutputTab = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
+          const activeContentId = activeOutputTab ? activeOutputTab.dataset.target : 'none';
+          console.log(`Copy to clipboard clicked. Active code view: ${activeContentId}`);
+          // TODO: Implement copy to clipboard logic
+        });
+      }
+    }
+
     // Simple display of the variables data
     function displayVariablesData() {
       const treeContainer = document.getElementById('variables-tree');
-      const outputArea = document.getElementById('variables-output');
+      const jsonContentDiv = document.getElementById('json-code-content');
+      const initialMessageEl = jsonContentDiv.querySelector('#json-initial-message');
+      const preViewerEl = jsonContentDiv.querySelector('pre.json-viewer');
       
       if (!variablesData || Object.keys(variablesData).length === 0) {
         treeContainer.innerHTML = '<p>No variables found in this document.</p>';
+        initialMessageEl.textContent = 'No variables found in this document.';
+        initialMessageEl.style.display = 'block';
+        preViewerEl.style.display = 'none';
         return;
       }
       
@@ -367,11 +483,63 @@
       html += '</ul>';
       treeContainer.innerHTML = html;
       
-      // Display the full JSON data in the output area
-      outputArea.innerHTML = `
-        <h3>Variables Data</h3>
-        <pre class="json-viewer">${JSON.stringify(variablesData, null, 2)}</pre>
-      `;
+      // Custom rendering for the output area
+      // We need a replacer function for JSON.stringify to handle our special alias objects
+      const replacer = (key, value) => {
+        if (value && value.__isAliasPath === true) {
+          // This is a placeholder. We need JSON.stringify to output a unique string
+          // that we can then replace with the unquoted, styled path.
+          return `ALIAS_PLACEHOLDER::${value.path}`;
+        }
+        if (value && value.__isAliasPathError === true) {
+          return `ALIAS_ERROR_PLACEHOLDER::${value.message}`;
+        }
+        return value;
+      };
+
+      // First pass: Convert to JSON string with placeholders
+      let jsonString = JSON.stringify(variablesData, replacer, 2);
+
+      // Post-process the string to insert the alias paths without quotes and with spans
+      jsonString = jsonString.replace(/"ALIAS_PLACEHOLDER::(.*?)"/g, (match, path) => {
+        // Check if path has our special bracket markers
+        if (path.includes('BRACKET_OPEN') && path.includes('BRACKET_CLOSE')) {
+          // Convert markers to actual bracket notation with quotes
+          let processedPath = path.replace(/\.BRACKET_OPEN(\d+)BRACKET_CLOSE/g, (match, number) => {
+            return `["${number}"]`;
+          });
+          
+          // Basic HTML safety
+          processedPath = processedPath.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          
+          return `<span class="alias-path">${processedPath}</span>`;
+        }
+        
+        // For paths without bracket notation, just do basic escaping
+        const escapedPath = path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `<span class="alias-path">${escapedPath}</span>`;
+      });
+      
+      jsonString = jsonString.replace(/"ALIAS_ERROR_PLACEHOLDER::(.*?)"/g, (match, message) => {
+        const escapedMessage = message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `<span class="string">"${escapedMessage}"</span>`; 
+      });
+      
+      // Apply general syntax highlighting for keys, strings, numbers etc.
+      jsonString = jsonString.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")(\s*:)/g, '<span class="key">$1</span>$3'); // Keys
+      jsonString = jsonString.replace(/:\s*("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")(?!<\/span>)/g, (match, group1) => {
+        // Don't re-wrap if it's already part of an alias path span or other manual span
+        if (match.includes('class="alias-path"')) return match;
+        return ': <span class="string">' + group1 + '</span>'; // Strings
+      });
+      jsonString = jsonString.replace(/:\s*\b(true|false)\b/g, ': <span class="boolean">$1</span>'); // Booleans
+      jsonString = jsonString.replace(/:\s*\b(null)\b/g, ': <span class="null">$1</span>'); // Null
+      jsonString = jsonString.replace(/:\s*(-?\d+(\.\d+)?([eE][+-]?\d+)?)/g, ': <span class="number">$1</span>'); // Numbers
+      
+      // Hide the initial message and show the JSON content
+      initialMessageEl.style.display = 'none';
+      preViewerEl.innerHTML = jsonString;
+      preViewerEl.style.display = 'block';
     }
   </script>
 </body>
