@@ -17,11 +17,15 @@ figma.ui.onmessage = async (msg) => {
       // Generate CSS string from the final payload
       const cssOutput = generateCssVariablesString(finalPayload, allVariablesMap, allCollectionsMap);
       
+      // Generate Tailwind config string
+      const tailwindOutput = await generateTailwindConfigString(finalPayload, allVariablesMap, allCollectionsMap);
+      
       figma.ui.postMessage({ 
         type: 'variables-data', 
         payload: {
           jsonData: finalPayload,
-          cssString: cssOutput
+          cssString: cssOutput,
+          tailwindString: tailwindOutput
         }
       });
     } catch (error) {
@@ -388,6 +392,84 @@ function getValueOrAliasPath(
 // CSS Variables Generation Helper Functions
 
 /**
+ * Determines the appropriate Tailwind theme category for a Figma variable
+ * @param {Object} variable - The Figma variable object
+ * @param {string} variablePath - The path of the variable (for context)
+ * @return {string|null} The Tailwind category or null if uncategorized
+ */
+function getTailwindCategory(variable, variablePath) {
+  const type = variable.resolvedType;
+  const path = variablePath.toLowerCase();
+
+  // Primary categorization based on resolvedType
+  if (type === 'COLOR') {
+    return 'colors';
+  }
+
+  if (type === 'STRING') {
+    if (path.includes('font-family') || path.includes('fontfamily') || 
+        path.includes('typeface') || path.includes('font') && path.includes('family')) {
+      return 'fontFamily';
+    }
+    // Other string categories could be added here if identified
+    return null; // Uncategorized string
+  }
+
+  if (type === 'FLOAT') {
+    // Spacing related
+    if (path.includes('spacing') || path.includes('padding') || path.includes('margin') || 
+        path.includes('gap') || path.includes('inset') || 
+        (path.includes('size') && !path.includes('font') && !path.includes('text'))) {
+      return 'spacing';
+    }
+    
+    // Typography related
+    if (path.includes('font-size') || path.includes('fontsize') || path.includes('text-size')) {
+      return 'fontSize';
+    }
+    
+    if (path.includes('line-height') || path.includes('lineheight') || path.includes('leading')) {
+      return 'lineHeight';
+    }
+    
+    if (path.includes('font-weight') || path.includes('fontweight') || 
+        (path.includes('font') && path.includes('weight'))) {
+      return 'fontWeight';
+    }
+    
+    if (path.includes('letter-spacing') || path.includes('letterspacing') || path.includes('tracking')) {
+      return 'letterSpacing';
+    }
+    
+    // Border related
+    if (path.includes('radius') || (path.includes('corner') && path.includes('radius'))) {
+      return 'borderRadius';
+    }
+    
+    if (path.includes('border-width') || path.includes('borderwidth') || path.includes('stroke-width')) {
+      return 'borderWidth';
+    }
+    
+    // Other numeric properties
+    if (path.includes('opacity') || path.includes('alpha')) {
+      return 'opacity';
+    }
+    
+    if (path.includes('z-index') || path.includes('zindex') || path.includes('layer') || 
+        path.includes('depth')) {
+      return 'zIndex';
+    }
+  }
+  
+  // Boolean values typically don't map to Tailwind theme scales
+  if (type === 'BOOLEAN') {
+    return null;
+  }
+  
+  return null; // Default: uncategorized
+}
+
+/**
  * Converts a string to kebab-case
  * @param {string} str - The string to convert
  * @return {string} Kebab-cased string
@@ -668,6 +750,165 @@ function generateCssVariablesString(payload, allVariablesMap, allCollectionsMap)
   }
   
   return cssString;
+}
+
+/**
+ * Generates a Tailwind CSS configuration string from Figma variables
+ * @param {Object} finalPayload - The structured variable payload
+ * @param {Map} allVariablesMap - Map of variable IDs to variables
+ * @param {Map} allCollectionsMap - Map of collection IDs to collections
+ * @return {string} The Tailwind config string
+ */
+async function generateTailwindConfigString(finalPayload, allVariablesMap, allCollectionsMap) {
+  console.log("[Tailwind] Starting Tailwind config generation");
+  console.log(`[Tailwind] finalPayload collections: ${Object.keys(finalPayload).join(', ')}`);
+  console.log(`[Tailwind] allVariablesMap size: ${allVariablesMap.size}`);
+  
+  const tailwindThemeExtend = {
+    colors: {},
+    spacing: {},
+    fontSize: {},
+    fontFamily: {},
+    fontWeight: {},
+    lineHeight: {},
+    borderRadius: {},
+    borderWidth: {},
+    opacity: {},
+    letterSpacing: {},
+    zIndex: {}
+  };
+  
+  // Build a path-to-variable lookup map for efficiency
+  const pathToVariableMap = new Map();
+  for (const variable of allVariablesMap.values()) {
+    pathToVariableMap.set(variable.name, variable);
+  }
+  
+  // Recursive function to process variables in the same order as CSS
+  function processTailwindVariables(obj, path = []) {
+    for (const key of Object.keys(obj)) {
+      const value = obj[key];
+      const currentPath = [...path, key];
+      
+      // If it's a leaf node (actual variable value)
+      if (value === null || typeof value !== 'object' || 
+          value.__isAliasPath || value.__isAliasPathError || 
+          Object.keys(value).length === 0) {
+        // It's a variable - get its full path for categorization
+        const fullPath = currentPath.join('/');
+        const tailwindKey = toKebabCase(fullPath);
+        
+        // Find the original variable to get its type for categorization
+        const originalVariable = pathToVariableMap.get(fullPath);
+        
+        if (originalVariable) {
+          console.log(`[Tailwind] Found exact match for path: ${fullPath}`);
+          const category = getTailwindCategory(originalVariable, fullPath);
+          
+          if (category && tailwindThemeExtend[category]) {
+            // Add to the appropriate category in Tailwind
+            const cssVarName = `--${tailwindKey}`;
+            tailwindThemeExtend[category][tailwindKey] = `var(${cssVarName})`;
+            console.log(`[Tailwind] Added to category ${category}: ${tailwindKey} = var(${cssVarName})`);
+          } else {
+            console.warn(`[Tailwind] No suitable category found for: ${fullPath}, type: ${originalVariable.resolvedType}`);
+          }
+        } else {
+          console.log(`[Tailwind] No exact match for path: ${fullPath}, trying fuzzy match...`);
+          // If no match by exact path, try finding a variable that ends with this path
+          // This is needed because sometimes the Figma variable name might not include the full path
+          let found = false;
+          for (const [varPath, variable] of pathToVariableMap.entries()) {
+            if (varPath.endsWith('/' + fullPath.split('/').pop())) {
+              const category = getTailwindCategory(variable, fullPath);
+              
+              if (category && tailwindThemeExtend[category]) {
+                const cssVarName = `--${tailwindKey}`;
+                tailwindThemeExtend[category][tailwindKey] = `var(${cssVarName})`;
+                console.log(`[Tailwind] Found fuzzy match: ${varPath} for ${fullPath}, added to ${category}`);
+                found = true;
+                break;
+              }
+            }
+          }
+          
+          if (!found) {
+            console.warn(`[Tailwind] Could not find variable for path: ${fullPath}`);
+          }
+        }
+      } else {
+        // It's a group - recurse
+        processTailwindVariables(value, currentPath);
+      }
+    }
+  }
+  
+  // Process collections in the same order as CSS
+  for (const collectionName of Object.keys(finalPayload)) {
+    const collectionObj = finalPayload[collectionName];
+    
+    // If collection has modes
+    if (typeof collectionObj === 'object' && Object.keys(collectionObj).length > 0) {
+      // Check if collection has modes or is a single-mode collection
+      if (Object.values(collectionObj)[0] && typeof Object.values(collectionObj)[0] === 'object') {
+        // Multi-mode collection
+        // Process each mode
+        for (const modeName of Object.keys(collectionObj)) {
+          const modeObj = collectionObj[modeName];
+          processTailwindVariables(modeObj);
+        }
+      } else {
+        // Single-mode collection (mode name is skipped)
+        processTailwindVariables(collectionObj);
+      }
+    }
+  }
+  
+  // Remove empty categories
+  for (const catKey in tailwindThemeExtend) {
+    if (Object.keys(tailwindThemeExtend[catKey]).length === 0) {
+      delete tailwindThemeExtend[catKey];
+    }
+  }
+  
+  // Generate the comment block for the Tailwind config
+  const commentBlock = `/**
+ * Tailwind CSS Configuration generated from Figma Variables
+ *
+ * This configuration extends the default Tailwind theme by mapping
+ * design tokens from your Figma file to CSS custom properties.
+ *
+ * How it works:
+ * - Figma variable names are transformed
+ *   into Tailwind keys.
+ * - These keys are then assigned a CSS var() function pointing to the
+ *   corresponding concise CSS custom property .
+ *
+ * This allows your Tailwind utilities to be dynamically themed by the
+ * CSS custom properties which can change based on applied theme classes
+ * derived from your Figma modes.
+ *
+ * Generated by Toko - Figma to Code Plugin
+ */`;
+  
+  // Construct the final Tailwind config string
+  let tailwindConfigString = `${commentBlock}\n\n`;
+  tailwindConfigString += `module.exports = {\n`;
+  tailwindConfigString += `  theme: {\n`;
+  
+  // Ensure 'extend' itself is only added if there's content
+  if (Object.keys(tailwindThemeExtend).length > 0) {
+    // Convert the extend object to a string with proper formatting and indentation
+    tailwindConfigString += `    extend: ${JSON.stringify(tailwindThemeExtend, null, 2).replace(/\n/g, '\n    ')}\n`;
+  } else {
+    // If tailwindThemeExtend is empty, output an empty extend object
+    tailwindConfigString += `    extend: {}\n`;
+  }
+  
+  tailwindConfigString += `  }\n`;
+  tailwindConfigString += `};\n`;
+  
+  return tailwindConfigString;
 }
 
 // Notify UI that the plugin is ready

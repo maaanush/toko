@@ -282,6 +282,30 @@
     .css-viewer .css-var-keyword { color: #C586C0; } /* Purple, for the 'var' keyword */
     .css-viewer .css-parenthesis { color: #FFD700; } /* Gold, for the ( and ) in var() */
     .css-viewer .css-var-content { color: #4EC9B0; } /* Teal, for the content inside var() e.g. --another-variable */
+  
+    /* Tailwind Viewer Styles */
+    pre.tailwind-viewer {
+      padding: 12px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--figma-color-text);
+      background-color: #1E1E1E;
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .tailwind-viewer .js-comment { color: #6A9955; } /* VS Code style green for comments */
+    .tailwind-viewer .js-keyword { color: #569CD6; } /* Blue for keywords like module, exports */
+    .tailwind-viewer .js-special-key { color: #4EC9B0; } /* Teal for 'theme', 'extend' as keys */
+    .tailwind-viewer .js-key { color: #9CDCFE; } /* Light blue for object keys like "colors-primary" */
+    .tailwind-viewer .js-string-value { color: #CE9178; } /* Orange for general string values */
+    .tailwind-viewer .js-css-var-func { color: #C586C0; } /* Purple for 'var' */
+    .tailwind-viewer .js-css-var-name { color: #4EC9B0; } /* Teal for '--css-variable-name' inside var() */
+    .tailwind-viewer .js-punctuation { color: #D4D4D4; } /* Light gray for punctuation */
+    .tailwind-viewer .js-brace { color: #FFD700; } /* Gold for {} */
+    .tailwind-viewer .js-bracket { color: #FFD700; } /* Gold for [] */
+    .tailwind-viewer .js-number { color: #B5CEA8; } /* Light green for numbers */
   </style>
 </head>
 <body>
@@ -376,6 +400,7 @@
     // Global state
     let variablesData = null;
     let cssOutputData = null; // Store CSS output
+    let tailwindOutputData = null; // Store Tailwind config output
 
     // Document ready event
     document.addEventListener('DOMContentLoaded', function () {
@@ -415,17 +440,32 @@
           parent.postMessage({ pluginMessage: { type: 'fetch-variables' } }, '*');
         }
         else if (message.type === 'variables-data') {
-          console.log('Received variables data (JSON and CSS)');
+          console.log('Received variables data from plugin');
           variablesData = message.payload.jsonData; // For JSON tab
           cssOutputData = message.payload.cssString; // Store CSS string
+          
+          // Check if tailwindString is present in the payload
+          if (message.payload.tailwindString) {
+            console.log('Received tailwindString, length:', message.payload.tailwindString.length);
+            tailwindOutputData = message.payload.tailwindString; // Store Tailwind string
+          } else {
+            console.warn('No tailwindString in payload', message.payload);
+          }
+          
           hideSpinner();
           displayVariablesData(); // This updates JSON tab
 
-          // If CSS tab is already active, update its content
+          // Update active tab content
           const cssContentDiv = document.getElementById('css-code-content');
+          const tailwindContentDiv = document.getElementById('tailwind-code-content');
           const activeOutputTab = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
+          console.log('Active output tab:', activeOutputTab ? activeOutputTab.dataset.target : 'none');
+          
           if (activeOutputTab && activeOutputTab.dataset.target === 'css-code-content') {
             displayCssData(cssContentDiv);
+          } else if (activeOutputTab && activeOutputTab.dataset.target === 'tailwind-code-content') {
+            console.log('Tailwind tab is active, updating content');
+            displayTailwindData(tailwindContentDiv);
           }
         }
         else if (message.type === 'error') {
@@ -517,6 +557,75 @@
       }
     }
 
+    // Display Tailwind data in the Tailwind tab
+    function displayTailwindData(containerElement) {
+      console.log('displayTailwindData called', { tailwindOutputData, containerElement });
+      
+      if (!containerElement) {
+        console.error('Container element for Tailwind not found');
+        return;
+      }
+
+      // If there's tailwind data to display
+      if (tailwindOutputData && typeof tailwindOutputData === 'string') {
+        console.log('Tailwind data available, length:', tailwindOutputData.length);
+        
+        // Clear the container and add our viewer
+        containerElement.innerHTML = `<pre class="tailwind-viewer"></pre>`;
+        const preViewerEl = containerElement.querySelector('pre.tailwind-viewer');
+        
+        // Apply syntax highlighting
+        const highlightedHtml = syntaxHighlightTailwindConfig(tailwindOutputData);
+        preViewerEl.innerHTML = highlightedHtml;
+      } else {
+        console.log('No Tailwind data available yet');
+        // Show placeholder message
+        containerElement.innerHTML = '<p style="padding: 12px; margin: 0;">Tailwind config will appear here once variables are processed.</p>';
+      }
+    }
+    
+    // Syntax highlighting for Tailwind config
+    function syntaxHighlightTailwindConfig(jsString) {
+      let html = jsString;
+      
+      // Basic HTML escaping for security
+      html = escapeHtml(html);
+      
+      // 1. Comments (block and line) - These are multiline and should be handled first
+      html = html.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="js-comment">$1</span>');
+      html = html.replace(/(\/\/.*)/g, '<span class="js-comment">$1</span>');
+      
+      // 2. 'var(--css-variable-name)' structure 
+      html = html.replace(/var\s*\(\s*(--[\w-]+)\s*\)/g, 
+        '<span class="js-css-var-func">var</span><span class="js-punctuation">(</span><span class="js-css-var-name">$1</span><span class="js-punctuation">)</span>');
+      
+      // 3. Keywords: module, exports, theme, extend (as specific keys)
+      html = html.replace(/\b(module)\.(exports)\b/g, '<span class="js-keyword">$1</span>.<span class="js-keyword">$2</span>');
+      html = html.replace(/(\btheme\b)(\s*:\s*{)/g, '<span class="js-special-key">$1</span>$2');
+      html = html.replace(/(\bextend\b)(\s*:\s*{)/g, '<span class="js-special-key">$1</span>$2');
+      
+      // 4. Other JavaScript keywords
+      const keywords = ['const', 'let', 'return', 'if', 'else', 'for', 'while',
+                        'case', 'break', 'true', 'false', 'null', 'undefined'];
+      keywords.forEach(kw => {
+        const regex = new RegExp(`\\b(${kw})\\b`, 'g');
+        html = html.replace(regex, '<span class="js-keyword">$1</span>');
+      });
+      
+      // 5. String literal keys in objects (e.g., "colors-brand-primary":)
+      html = html.replace(/("[\w\-\/]+")(\s*:)/g, '<span class="js-key">$1</span>$2');
+      
+      // 6. Punctuation: {}, [], :, comma
+      html = html.replace(/([{}])/g, '<span class="js-brace">$1</span>');
+      html = html.replace(/([\[\]])/g, '<span class="js-bracket">$1</span>');
+      html = html.replace(/,/g, '<span class="js-punctuation">,</span>');
+      
+      // 7. Numbers
+      html = html.replace(/\b(\d+(\.\d+)?)\b/g, '<span class="js-number">$1</span>');
+      
+      return html;
+    }
+
     // Setup tabs for the output area
     function setupOutputAreaTabs() {
       const outputTabButtons = document.querySelectorAll('#output-area-header .tab-button-group .tab-button');
@@ -524,6 +633,10 @@
 
       outputTabButtons.forEach(button => {
         button.addEventListener('click', () => {
+          // Get the target before deactivating tabs
+          const targetId = button.getAttribute('data-target');
+          console.log(`Tab button clicked: ${targetId}`);
+          
           // Deactivate all output tabs and hide all output content
           outputTabButtons.forEach(btn => btn.classList.remove('active'));
           outputTabContents.forEach(content => content.classList.remove('active'));
@@ -532,7 +645,6 @@
           button.classList.add('active');
 
           // Show the target content
-          const targetId = button.getAttribute('data-target');
           const targetContent = document.getElementById(targetId);
           if (targetContent) {
             targetContent.classList.add('active');
@@ -540,7 +652,12 @@
             // If switching to CSS tab, display the CSS data
             if (targetId === 'css-code-content') {
               displayCssData(targetContent);
+            } else if (targetId === 'tailwind-code-content') {
+              console.log('Tailwind tab clicked', { tailwindOutputData: !!tailwindOutputData });
+              displayTailwindData(targetContent);
             }
+          } else {
+            console.error(`Target content not found for ID: ${targetId}`);
           }
         });
       });
@@ -560,8 +677,8 @@
             downloadAsFile('variables.json', JSON.stringify(variablesData, null, 2));
           } else if (activeContentId === 'css-code-content' && cssOutputData) {
             downloadAsFile('variables.css', cssOutputData);
-          } else if (activeContentId === 'tailwind-code-content') {
-            // TODO: Implement Tailwind download when available
+          } else if (activeContentId === 'tailwind-code-content' && tailwindOutputData) {
+            downloadAsFile('tailwind.config.js', tailwindOutputData);
           }
         });
       }
@@ -572,13 +689,40 @@
           const activeContentId = activeOutputTab ? activeOutputTab.dataset.target : 'none';
           console.log(`Copy to clipboard clicked. Active code view: ${activeContentId}`);
           
-          // Copy the active content
           if (activeContentId === 'json-code-content' && variablesData) {
-            copyToClipboard(JSON.stringify(variablesData, null, 2));
+            const replacer = (key, value) => {
+              if (value && value.__isAliasPath === true) {
+                return `ALIAS_PLACEHOLDER::${value.path}`;
+              }
+              if (value && value.__isAliasPathError === true) {
+                return `ALIAS_ERROR_PLACEHOLDER::${value.message}`;
+              }
+              return value;
+            };
+
+            let textToCopy = JSON.stringify(variablesData, replacer, 2);
+
+            // Post-process the string to replace placeholders with actual string values,
+            // ensuring the final output is valid JSON.
+            textToCopy = textToCopy.replace(/"ALIAS_PLACEHOLDER::(.*?)"/g, (match, pathContent) => {
+              let processedPath = pathContent;
+              if (processedPath.includes('BRACKET_OPEN') && processedPath.includes('BRACKET_CLOSE')) {
+                processedPath = processedPath.replace(/\.BRACKET_OPEN(\d+)BRACKET_CLOSE/g, (m, number) => `["${number}"]`);
+              }
+              // JSON.stringify will correctly quote and escape the processedPath to be a valid JSON string.
+              return JSON.stringify(processedPath);
+            });
+            
+            textToCopy = textToCopy.replace(/"ALIAS_ERROR_PLACEHOLDER::(.*?)"/g, (match, messageContent) => {
+              // JSON.stringify will correctly quote and escape the messageContent.
+              return JSON.stringify(messageContent);
+            });
+
+            copyToClipboard(textToCopy);
           } else if (activeContentId === 'css-code-content' && cssOutputData) {
             copyToClipboard(cssOutputData);
-          } else if (activeContentId === 'tailwind-code-content') {
-            // TODO: Implement Tailwind copy when available
+          } else if (activeContentId === 'tailwind-code-content' && tailwindOutputData) {
+            copyToClipboard(tailwindOutputData);
           }
         });
       }
@@ -709,4 +853,4 @@
     }
   </script>
 </body>
-</html> 
+</html>
