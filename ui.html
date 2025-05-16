@@ -140,6 +140,59 @@
       gap: 12px; /* Added for internal layout */
     }
 
+    /* Search box styles */
+    .search-container {
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 6px 8px 6px 28px;
+      background-color: var(--tab-active-bg);
+      border: 1px solid var(--tab-wrapper-border);
+      border-radius: 4px;
+      color: var(--figma-color-text);
+      font-size: 11px;
+      box-sizing: border-box;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 8px;
+      top: 6px;
+      width: 14px;
+      height: 14px;
+      opacity: 0.6;
+    }
+
+    .search-clear {
+      font-size: 10px;
+      position: absolute;
+      right: 8px;
+      top: 7px;
+      opacity: 0.6;
+      cursor: pointer;
+      display: none;
+    }
+
+    .search-clear:hover {
+      opacity: 1;
+    }
+
+    /* Match highlight in tree */
+    .search-match {
+      background-color: rgba(252, 207, 112, 0.2);
+      border-radius: 2px;
+    }
+
+    /* No results state */
+    .no-results {
+      padding: 10px;
+      color: var(--tab-default-text-color);
+      font-style: italic;
+      text-align: center;
+    }
+
     #output-area {
       flex-basis: 67%; /* Takes roughly 2/3 of the space */
       flex-grow: 1;
@@ -160,7 +213,7 @@
     .tree-item-header {
       display: flex;
       align-items: center;
-      padding: 4px 8px;
+      /* padding: 4px 8px; */
       border-radius: 4px;
       user-select: none;
     }
@@ -175,9 +228,10 @@
     }
 
     .tree-item-toggle {
-      margin-right: 4px;
       transform: rotate(0deg);
       transition: transform 0.2s;
+      margin-right: 8px;
+    
     }
 
     .tree-item-toggle.open {
@@ -185,12 +239,16 @@
     }
 
     .tree-item-children {
-      margin-left: 16px;
+      margin-top: 8px;
+      padding-left: 20px;
       display: none;
+      list-style: none;
     }
 
     .tree-item-children.open {
-      display: block;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
 
     /* Spinner for loading state */
@@ -306,6 +364,71 @@
     .tailwind-viewer .js-brace { color: #FFD700; } /* Gold for {} */
     .tailwind-viewer .js-bracket { color: #FFD700; } /* Gold for [] */
     .tailwind-viewer .js-number { color: #B5CEA8; } /* Light green for numbers */
+
+    /* DTCG Token Viewer styles */
+    .dtcg-token {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 4px;
+    }
+
+    .dtcg-color-preview {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      margin-right: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      vertical-align: middle;
+    }
+
+    .json-viewer span.key {
+      color: #9CDCFE; /* Light blue for keys */
+    }
+
+    .json-viewer span.value-color {
+      color: #CE9178; /* Orange-red for color values */
+    }
+
+    .json-viewer span.value-dimension {
+      color: #B5CEA8; /* Light green for dimensions */
+    }
+
+    .json-viewer span.value-string {
+      color: #CE9178; /* Orange-red for strings */
+    }
+
+    .json-viewer span.value-number {
+      color: #B5CEA8; /* Light green for numbers */
+    }
+
+    .json-viewer span.value-alias {
+      color: #DCDCAA; /* Yellow for alias references */
+    }
+
+    .json-viewer span.metadata {
+      color: #C586C0; /* Purple for $type, $value, etc. */
+    }
+
+    .json-viewer span.type-label {
+      color: #569CD6; /* Blue for type values */
+      font-style: italic;
+    }
+
+    /* Enhance the tree-view with types of tokens */
+    .tree-item-header {
+      display: flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 4px;
+      user-select: none;
+    }
+
+    .tree-root {
+      padding-left: 0;
+      margin: 0;
+      list-style: none;
+    }
   </style>
 </head>
 <body>
@@ -331,6 +454,11 @@
         <!-- Variables View -->
         <div class="tab-content active" id="variables-view">
           <div id="tree-area">
+            <div class="search-container">
+              <input type="text" class="search-input" placeholder="Search...">
+              <span class="search-icon"></span>
+              <span class="search-clear">clear</span>
+            </div>
             <div id="variables-tree">
               <div class="spinner"></div>
             </div>
@@ -339,6 +467,7 @@
             <!-- Output Area Header with tabs -->
             <div id="output-area-header">
               <div class="tab-button-group"> <!-- For JsObject, CSS, Tailwind tabs -->
+                <button class="tab-button output-tab-button" data-target="json-code-content">JSON</button>
                 <button class="tab-button output-tab-button active" data-target="jsobject-code-content">JsObject</button>
                 <button class="tab-button output-tab-button" data-target="css-code-content">CSS</button>
                 <button class="tab-button output-tab-button" data-target="tailwind-code-content">Tailwind</button>
@@ -351,6 +480,11 @@
 
             <!-- Output Area Code (scrollable content) -->
             <div id="output-area-code">
+              <!-- JSON Content Pane (DTCG Format) -->
+              <div id="json-code-content" class="output-code-content">
+                <p id="json-initial-message" style="padding: 12px; margin: 0;">Select a collection, mode, or variable in the tree to view DTCG standard JSON.</p>
+                <pre class="json-viewer" style="display: none;"></pre> <!-- DTCG JSON will go here -->
+              </div>
               <!-- JsObject Content Pane -->
               <div id="jsobject-code-content" class="output-code-content active">
                 <p id="jsobject-initial-message" style="padding: 12px; margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
@@ -399,6 +533,7 @@
   <script>
     // Global state
     let variablesData = null;
+    let dtcgData = null; // Store DTCG-compliant data
     let cssOutputData = null; // Store CSS output
     let tailwindOutputData = null; // Store Tailwind config output
 
@@ -428,6 +563,17 @@
       
       // Setup the output area tabs
       setupOutputAreaTabs();
+      
+      // Setup search functionality
+      setupSearchFunctionality();
+
+      // NEW: Setup tree view interactions ONCE on the container
+      const treeContainer = document.getElementById('variables-tree');
+      if (treeContainer) {
+        treeContainer.addEventListener('click', handleTreeItemClick);
+      } else {
+        console.error("Tree container #variables-tree not found on DOMContentLoaded for attaching main click listener.");
+      }
 
       // Message handler from the plugin
       window.onmessage = event => {
@@ -442,6 +588,7 @@
         else if (message.type === 'variables-data') {
           console.log('Received variables data from plugin');
           variablesData = message.payload.jsObjectData; // For JsObject tab
+          dtcgData = message.payload.dtcgStandardData; // Store DTCG data
           cssOutputData = message.payload.cssString; // Store CSS string
           
           // Check if tailwindString is present in the payload
@@ -453,9 +600,15 @@
           }
           
           hideSpinner();
-          displayVariablesData(); // This updates JSON tab
+          displayVariablesData(); // Update JSObject tab
+          
+          // Also update the DTCG JSON tab content
+          const jsonContentDiv = document.getElementById('json-code-content');
+          if (jsonContentDiv) {
+            displayDtcgJsonData(jsonContentDiv);
+          }
 
-          // Update active tab content
+          // Update other active tab content
           const cssContentDiv = document.getElementById('css-code-content');
           const tailwindContentDiv = document.getElementById('tailwind-code-content');
           const activeOutputTab = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
@@ -466,6 +619,9 @@
           } else if (activeOutputTab && activeOutputTab.dataset.target === 'tailwind-code-content') {
             console.log('Tailwind tab is active, updating content');
             displayTailwindData(tailwindContentDiv);
+          } else if (activeOutputTab && activeOutputTab.dataset.target === 'json-code-content') {
+            console.log('JSON tab is active, updating content');
+            displayDtcgJsonData(jsonContentDiv);
           }
         }
         else if (message.type === 'error') {
@@ -479,6 +635,53 @@
         }
       };
     });
+
+    // NEW: Dedicated click handler for tree items (replaces old setupTreeViewInteractions logic)
+    function handleTreeItemClick(e) {
+      const header = e.target.closest('.tree-item-header');
+      if (!header) return;
+
+      const toggle = header.querySelector('.tree-item-toggle');
+      if (toggle) { // It's a group (has a toggle arrow) - toggle expand/collapse
+          const treeItem = header.closest('.tree-item');
+          const children = treeItem ? treeItem.querySelector('.tree-item-children') : null;
+          
+          if (children) {
+              toggle.classList.toggle('open');
+              children.classList.toggle('open');
+          } else {
+              // This case should ideally not happen if a .tree-item-toggle exists
+              console.warn("Tree item toggle clicked, but no .tree-item-children found to expand/collapse.", header);
+          }
+      }
+
+      // Handle selection for both groups and leaves
+      const treeItem = header.closest('.tree-item');
+      if (!treeItem) {
+          console.warn("Could not find parent .tree-item for clicked header.", header);
+          return; 
+      }
+
+      const path = treeItem.dataset.path;
+
+      // Deselect all other items within this specific tree
+      const allSelectedHeaders = document.querySelectorAll('#variables-tree .tree-item-header.selected');
+      allSelectedHeaders.forEach(el => {
+          if (el !== header) { // Don't deselect the currently clicked one yet
+            el.classList.remove('selected');
+          }
+      });
+
+      // Select this item (or re-select if already selected, which is fine)
+      header.classList.add('selected');
+
+      // Show the details for this path, if a path exists
+      if (path) {
+          showDetailsForPath(path);
+      } else {
+          console.warn("Clicked tree item header has no data-path attribute.", header);
+      }
+    }
 
     // Utility functions
     function hideSpinner() {
@@ -495,6 +698,125 @@
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#039;");
+    }
+    
+    // Display DTCG JSON data in the JSON tab with enhanced visualization
+    function displayDtcgJsonData(containerElement) {
+      const initialMessageEl = containerElement.querySelector('#json-initial-message');
+      const preViewerEl = containerElement.querySelector('pre.json-viewer');
+      
+      if (!dtcgData || Object.keys(dtcgData).length === 0) {
+        if (initialMessageEl) {
+          initialMessageEl.textContent = 'No DTCG-compliant JSON data available.';
+          initialMessageEl.style.display = 'block';
+        }
+        if (preViewerEl) {
+          preViewerEl.style.display = 'none';
+        }
+        return;
+      }
+      
+      // Enhanced syntax highlighting for DTCG tokens
+      let jsonHtml = enhancedDtcgSyntaxHighlight(dtcgData);
+      
+      // Hide the initial message and show the JSON content
+      if (initialMessageEl) {
+        initialMessageEl.style.display = 'none';
+      }
+      if (preViewerEl) {
+        preViewerEl.innerHTML = jsonHtml;
+        preViewerEl.style.display = 'block';
+      }
+      
+      // Add event listeners for interactive elements
+      setTimeout(() => {
+        addInteractiveFeaturesToJson(containerElement);
+      }, 0);
+    }
+    
+    // Enhanced syntax highlighting specifically for DTCG format
+    function enhancedDtcgSyntaxHighlight(obj) {
+      // Convert to string with 2-space indentation
+      let jsonString = JSON.stringify(obj, null, 2);
+      
+      // Escape HTML for safety
+      jsonString = escapeHtml(jsonString);
+      
+      // Highlight DTCG metadata keys ($type, $value, $description)
+      jsonString = jsonString.replace(/"(\$\w+)":/g, '"<span class="metadata">$1</span>":');
+      
+      // Highlight token type values
+      jsonString = jsonString.replace(/"(\$type)":\s*"([\w-]+)"/g, 
+        '"<span class="metadata">$1</span>": "<span class="type-label">$2</span>"');
+      
+      // Highlight values based on their types - this needs to be after the original json.stringify
+      
+      // Find all $type/$value pairs using regex with lookbehind
+      let html = jsonString.replace(/("(\$type)":\s*"([\w-]+)"[^{]*"(\$value)":\s*)("(?:[^"\\]|\\.)*"|{[^}]*}|\[[^\]]*\]|null|-?\d+(?:\.\d+)?)/g, 
+        (match, typePart, typeKey, typeValue, valueKey, valueContent) => {
+          // Process based on the $type value
+          switch (typeValue) {
+            case 'color':
+              let colorClass = 'value-color';
+              let colorPreview = '';
+              
+              // Check if it's a literal color (not an alias)
+              if (valueContent.startsWith('"#') || valueContent.startsWith('"rgb')) {
+                const colorValue = valueContent.slice(1, -1); // Remove quotes
+                colorPreview = `<span class="dtcg-color-preview" style="background-color: ${colorValue}"></span>`;
+                return `${typePart}${colorPreview}<span class="${colorClass}">${valueContent}</span>`;
+              } else if (valueContent.startsWith('"{') && valueContent.endsWith('}"')) {
+                // It's an alias
+                return `${typePart}<span class="value-alias">${valueContent}</span>`;
+              }
+              return `${typePart}<span class="${colorClass}">${valueContent}</span>`;
+              
+            case 'dimension':
+              return `${typePart}<span class="value-dimension">${valueContent}</span>`;
+              
+            case 'string':
+            case 'fontFamily':
+              return `${typePart}<span class="value-string">${valueContent}</span>`;
+              
+            case 'number':
+            case 'fontWeight':
+              return `${typePart}<span class="value-number">${valueContent}</span>`;
+              
+            default:
+              // Detect if it's an alias reference
+              if (valueContent.startsWith('"{') && valueContent.endsWith('}"')) {
+                return `${typePart}<span class="value-alias">${valueContent}</span>`;
+              }
+              return `${typePart}${valueContent}`;
+          }
+        });
+      
+      // Highlight standard JSON syntax
+      html = html.replace(/("(?:[^"\\]|\\.)*")(?=:)/g, '<span class="key">$1</span>'); // Keys
+      
+      return html;
+    }
+    
+    // Add interactive features to the JSON display
+    function addInteractiveFeaturesToJson(containerElement) {
+      // Add color previews next to color values for actual interaction
+      const colorValues = containerElement.querySelectorAll('.value-color');
+      colorValues.forEach(colorEl => {
+        // Process only direct color values (not aliases)
+        const colorText = colorEl.textContent;
+        if (colorText.startsWith('"#') || colorText.startsWith('"rgb')) {
+          const colorValue = colorText.slice(1, -1); // Remove quotes
+          const colorPreview = document.createElement('span');
+          colorPreview.className = 'dtcg-color-preview';
+          colorPreview.style.backgroundColor = colorValue;
+          
+          // Add tooltip on hover
+          colorPreview.title = colorValue;
+          
+          // Insert before the text
+          colorEl.parentNode.insertBefore(colorPreview, colorEl);
+        }
+      });
     }
 
     // Display CSS data in the CSS tab
@@ -649,12 +971,15 @@
           if (targetContent) {
             targetContent.classList.add('active');
             
-            // If switching to CSS tab, display the CSS data
+            // Display appropriate content based on the tab
             if (targetId === 'css-code-content') {
               displayCssData(targetContent);
             } else if (targetId === 'tailwind-code-content') {
               console.log('Tailwind tab clicked', { tailwindOutputData: !!tailwindOutputData });
               displayTailwindData(targetContent);
+            } else if (targetId === 'json-code-content') {
+              console.log('JSON tab clicked', { dtcgData: !!dtcgData });
+              displayDtcgJsonData(targetContent);
             }
           } else {
             console.error(`Target content not found for ID: ${targetId}`);
@@ -673,7 +998,9 @@
           console.log(`Download code button clicked. Active code view: ${activeContentId}`);
           
           // Download the active content
-          if (activeContentId === 'jsobject-code-content' && variablesData) {
+          if (activeContentId === 'json-code-content' && dtcgData) {
+            downloadAsFile('design-tokens.json', JSON.stringify(dtcgData, null, 2));
+          } else if (activeContentId === 'jsobject-code-content' && variablesData) {
             downloadAsFile('variables.json', JSON.stringify(variablesData, null, 2));
           } else if (activeContentId === 'css-code-content' && cssOutputData) {
             downloadAsFile('variables.css', cssOutputData);
@@ -689,7 +1016,9 @@
           const activeContentId = activeOutputTab ? activeOutputTab.dataset.target : 'none';
           console.log(`Copy to clipboard clicked. Active code view: ${activeContentId}`);
           
-          if (activeContentId === 'jsobject-code-content' && variablesData) {
+          if (activeContentId === 'json-code-content' && dtcgData) {
+            copyToClipboard(JSON.stringify(dtcgData, null, 2));
+          } else if (activeContentId === 'jsobject-code-content' && variablesData) {
             const replacer = (key, value) => {
               if (value && value.__isAliasPath === true) {
                 return `ALIAS_PLACEHOLDER::${value.path}`;
@@ -754,15 +1083,14 @@
       // Show a temporary notification
       const notification = document.createElement('div');
       notification.style.position = 'fixed';
-      notification.style.bottom = '20px';
-      notification.style.left = '50%';
-      notification.style.transform = 'translateX(-50%)';
-      notification.style.padding = '8px 16px';
-      notification.style.backgroundColor = '#333';
-      notification.style.color = '#fff';
+      notification.style.bottom = '24px';
+      notification.style.right = '24px';
+      notification.style.padding = '8px 12px';
+      notification.style.backgroundColor = '#fdfdfd';
+      notification.style.color = '#121212';
       notification.style.borderRadius = '4px';
       notification.style.zIndex = '1000';
-      notification.textContent = 'Copied to clipboard!';
+      notification.textContent = 'Copied to clipboard';
       document.body.appendChild(notification);
       
       setTimeout(() => {
@@ -770,35 +1098,47 @@
       }, 2000);
     }
 
-    // Simple display of the variables data
+    // displayVariablesData will NO LONGER call setupTreeViewInteractions
     function displayVariablesData() {
       const treeContainer = document.getElementById('variables-tree');
       const jsObjectContentDiv = document.getElementById('jsobject-code-content');
+      
+      // Ensure elements exist before proceeding
+      if (!treeContainer || !jsObjectContentDiv) {
+        console.error("Tree container or JSObject content div not found in displayVariablesData.");
+        if (treeContainer) treeContainer.innerHTML = '<p>Error: UI elements missing.</p>';
+        hideSpinner();
+        return;
+      }
+
       const initialMessageEl = jsObjectContentDiv.querySelector('#jsobject-initial-message');
       const preViewerEl = jsObjectContentDiv.querySelector('pre.jsobject-viewer');
+
+      if (!initialMessageEl || !preViewerEl) {
+        console.error("Initial message or pre viewer for JSObject not found in displayVariablesData.");
+        if (treeContainer) treeContainer.innerHTML = '<p>Error: UI elements missing.</p>';
+        hideSpinner();
+        return;
+      }
       
       if (!variablesData || Object.keys(variablesData).length === 0) {
         treeContainer.innerHTML = '<p>No variables found in this document.</p>';
         initialMessageEl.textContent = 'No variables found in this document.';
         initialMessageEl.style.display = 'block';
         preViewerEl.style.display = 'none';
+        hideSpinner();
         return;
       }
       
-      // Display a simple list of collections in the tree area
-      let html = '<ul>';
-      for (const collectionName in variablesData) {
-        html += `<li>${collectionName}</li>`;
-      }
-      html += '</ul>';
+      hideSpinner(); // Hide spinner before building tree
+      let html = buildEnhancedTreeView(variablesData, dtcgData);
       treeContainer.innerHTML = html;
       
-      // Custom rendering for the output area
-      // We need a replacer function for JSON.stringify to handle our special alias objects
+      // REMOVED: setupTreeViewInteractions(treeContainer); // Listener is now global
+      
+      // Display JSObject content (keep existing functionality)
       const replacer = (key, value) => {
         if (value && value.__isAliasPath === true) {
-          // This is a placeholder. We need JSON.stringify to output a unique string
-          // that we can then replace with the unquoted, styled path.
           return `ALIAS_PLACEHOLDER::${value.path}`;
         }
         if (value && value.__isAliasPathError === true) {
@@ -807,27 +1147,15 @@
         return value;
       };
 
-      // First pass: Convert to JSON string with placeholders
       let jsonString = JSON.stringify(variablesData, replacer, 2);
 
-      // Post-process the string to insert the alias paths without quotes and with spans
-      jsonString = jsonString.replace(/"ALIAS_PLACEHOLDER::(.*?)"/g, (match, path) => {
-        // Check if path has our special bracket markers
-        if (path.includes('BRACKET_OPEN') && path.includes('BRACKET_CLOSE')) {
-          // Convert markers to actual bracket notation with quotes
-          let processedPath = path.replace(/\.BRACKET_OPEN(\d+)BRACKET_CLOSE/g, (match, number) => {
-            return `["${number}"]`;
-          });
-          
-          // Basic HTML safety
-          processedPath = processedPath.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          
-          return `<span class="alias-path">${processedPath}</span>`;
+      // Post-process the string to replace placeholders with actual string values
+      jsonString = jsonString.replace(/"ALIAS_PLACEHOLDER::(.*?)"/g, (match, pathContent) => {
+        let processedPath = pathContent;
+        if (processedPath.includes('BRACKET_OPEN') && processedPath.includes('BRACKET_CLOSE')) {
+          processedPath = processedPath.replace(/\.BRACKET_OPEN(\d+)BRACKET_CLOSE/g, (m, number) => `["${number}"]`);
         }
-        
-        // For paths without bracket notation, just do basic escaping
-        const escapedPath = path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        return `<span class="alias-path">${escapedPath}</span>`;
+        return `<span class="alias-path">${processedPath}</span>`;
       });
       
       jsonString = jsonString.replace(/"ALIAS_ERROR_PLACEHOLDER::(.*?)"/g, (match, message) => {
@@ -837,7 +1165,7 @@
       
       // Apply general syntax highlighting for keys, strings, numbers etc.
       jsonString = jsonString.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")(\s*:)/g, '<span class="key">$1</span>$3'); // Keys
-      jsonString = jsonString.replace(/:\s*("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")(?!<\/span>)/g, (match, group1) => {
+      jsonString = jsonString.replace(/:\s*("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")/g, (match, group1) => {
         // Don't re-wrap if it's already part of an alias path span or other manual span
         if (match.includes('class="alias-path"')) return match;
         return ': <span class="string">' + group1 + '</span>'; // Strings
@@ -850,6 +1178,346 @@
       initialMessageEl.style.display = 'none';
       preViewerEl.innerHTML = jsonString;
       preViewerEl.style.display = 'block';
+    }
+    
+    // Build enhanced tree view with token type indicators
+    function buildEnhancedTreeView(jsObjectData, dtcgData) {
+      let html = '<ul class="tree-root">';
+      
+      // Build a mapping of paths to token types from dtcgData
+      const tokenTypeMap = new Map();
+      
+      // Extract token types
+      function extractTokenTypes(obj, path = []) {
+        if (!obj || typeof obj !== 'object') return;
+        
+        // If it's a token with $type
+        if (obj.$type && '$value' in obj) {
+          const fullPath = path.join('.');
+          tokenTypeMap.set(fullPath, obj.$type);
+          return;
+        }
+        
+        // Process all child nodes
+        for (const key in obj) {
+          if (key.startsWith('$')) continue; // Skip metadata
+          extractTokenTypes(obj[key], [...path, key]);
+        }
+      }
+      
+      // Extract token types from dtcgData
+      for (const collName in dtcgData) {
+        extractTokenTypes(dtcgData[collName], [collName]);
+      }
+      
+      // Recursive function to build tree HTML
+      function buildTreeItemsHtml(obj, path = [], level = 0) {
+        let result = '';
+        
+        for (const key in obj) {
+          const value = obj[key];
+          const currentPath = [...path, key];
+          const fullPath = currentPath.join('.');
+          
+          // Check if this is a group or a leaf
+          const isGroup = value && typeof value === 'object' && 
+                        !(value.__isAliasPath || value.__isAliasPathError) &&
+                        Object.keys(value).length > 0;
+          
+          if (isGroup) {
+            // It's a group node
+            const indentation = '  '.repeat(level);
+            let typeClass = '';
+            
+            // Check if this group contains tokens of primarily one type
+            const childTypes = new Set();
+            for (const childKey in value) {
+              const childPath = [...currentPath, childKey].join('.');
+              if (tokenTypeMap.has(childPath)) {
+                childTypes.add(tokenTypeMap.get(childPath));
+              }
+            }
+            
+            // If a single dominant type, use that for the indicator
+            if (childTypes.size === 1) {
+              const type = [...childTypes][0];
+              typeClass = `tree-item-type-${type === 'color' ? 'color' : 
+                          type === 'dimension' ? 'dimension' : 
+                          type === 'typography' ? 'typography' : 'other'}`;
+            } else if (childTypes.size > 0) {
+              typeClass = 'tree-item-type-other';
+            }
+            
+            result += `${indentation}<li class="tree-item" data-path="${fullPath}">
+              <div class="tree-item-header">
+                <span class="tree-item-toggle">▶</span>
+                <span class="tree-item-label">${key}</span>
+              </div>
+              <ul class="tree-item-children">
+                ${buildTreeItemsHtml(value, currentPath, level + 1)}
+              </ul>
+            </li>`;
+          } else {
+            // It's a leaf node (actual variable)
+            const indentation = '  '.repeat(level);
+            // const tokenType = tokenTypeMap.get(fullPath); // This line can be kept or removed, it won't be used
+            // const typeClass = tokenType === 'color' ? 'tree-item-type-color' : 
+            //                  tokenType === 'dimension' ? 'tree-item-type-dimension' : 
+            //                  tokenType === 'typography' ? 'tree-item-type-typography' : 'tree-item-type-other';
+            
+            result += `${indentation}<li class="tree-item" data-path="${fullPath}">
+              <div class="tree-item-header leaf">
+                <span class="tree-item-label">${key}</span>
+              </div>
+            </li>`;
+          }
+        }
+        
+        return result;
+      }
+      
+      // Build tree for each collection
+      for (const collectionName in jsObjectData) {
+        const collectionData = jsObjectData[collectionName];
+        
+        html += `<li class="tree-item" data-path="${collectionName}">
+          <div class="tree-item-header">
+            <span class="tree-item-toggle">▶</span>
+            <span class="tree-item-label">${collectionName}</span>
+          </div>
+          <ul class="tree-item-children">
+            ${buildTreeItemsHtml(collectionData, [collectionName], 1)}
+          </ul>
+        </li>`;
+      }
+      
+      html += '</ul>';
+      return html;
+    }
+    
+    // Show token details for a selected path
+    function showDetailsForPath(path) {
+      if (!path) return;
+      
+      // Split the path into parts
+      const parts = path.split('.');
+      
+      // Locate the data in both jsObjectData and dtcgData
+      let jsObj = variablesData;
+      let dtcgObj = dtcgData;
+      
+      for (const part of parts) {
+        if (jsObj) jsObj = jsObj[part];
+        if (dtcgObj) dtcgObj = dtcgObj[part];
+      }
+      
+      // Update the outputs
+      // JSObject tab
+      const jsObjectContentDiv = document.getElementById('jsobject-code-content');
+      const jsPreViewer = jsObjectContentDiv.querySelector('pre.jsobject-viewer');
+      
+      if (jsObj && jsPreViewer) {
+        const replacer = (key, value) => {
+          if (value && value.__isAliasPath === true) {
+            return `ALIAS_PLACEHOLDER::${value.path}`;
+          }
+          if (value && value.__isAliasPathError === true) {
+            return `ALIAS_ERROR_PLACEHOLDER::${value.message}`;
+          }
+          return value;
+        };
+        
+        let jsonString = JSON.stringify(jsObj, replacer, 2);
+        
+        // Apply the same processing as in displayVariablesData
+        jsonString = jsonString.replace(/"ALIAS_PLACEHOLDER::(.*?)"/g, (match, pathContent) => {
+          let processedPath = pathContent;
+          if (processedPath.includes('BRACKET_OPEN') && processedPath.includes('BRACKET_CLOSE')) {
+            processedPath = processedPath.replace(/\.BRACKET_OPEN(\d+)BRACKET_CLOSE/g, (m, number) => `["${number}"]`);
+          }
+          return `<span class="alias-path">${processedPath}</span>`;
+        });
+        
+        jsonString = jsonString.replace(/"ALIAS_ERROR_PLACEHOLDER::(.*?)"/g, (match, message) => {
+          const escapedMessage = message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return `<span class="string">"${escapedMessage}"</span>`; 
+        });
+        
+        // Apply general syntax highlighting
+        jsonString = jsonString.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")(\s*:)/g, '<span class="key">$1</span>$3');
+        jsonString = jsonString.replace(/:\s*("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")/g, (match, group1) => {
+          if (match.includes('class="alias-path"')) return match;
+          return ': <span class="string">' + group1 + '</span>';
+        });
+        jsonString = jsonString.replace(/:\s*\b(true|false)\b/g, ': <span class="boolean">$1</span>');
+        jsonString = jsonString.replace(/:\s*\b(null)\b/g, ': <span class="null">$1</span>');
+        jsonString = jsonString.replace(/:\s*(-?\d+(\.\d+)?([eE][+-]?\d+)?)/g, ': <span class="number">$1</span>');
+        
+        // Update the JSObject viewer
+        jsPreViewer.innerHTML = jsonString;
+      }
+      
+      // DTCG JSON tab
+      const jsonContentDiv = document.getElementById('json-code-content');
+      const jsonPreViewer = jsonContentDiv.querySelector('pre.json-viewer');
+      
+      if (dtcgObj && jsonPreViewer) {
+        // Enhanced syntax highlighting for DTCG tokens
+        const jsonHtml = enhancedDtcgSyntaxHighlight(dtcgObj);
+        
+        // Update the JSON viewer
+        jsonPreViewer.innerHTML = jsonHtml;
+        
+        // Add interactive features
+        setTimeout(() => {
+          addInteractiveFeaturesToJson(jsonContentDiv);
+        }, 0);
+      }
+    }
+
+    // Setup search functionality
+    function setupSearchFunctionality() {
+      const searchInput = document.querySelector('.search-input');
+      const searchIcon = document.querySelector('.search-icon');
+      const searchClear = document.querySelector('.search-clear');
+      const treeContainer = document.getElementById('variables-tree'); // Define treeContainer once
+
+      if (!searchInput || !treeContainer) {
+        console.error("Search input or tree container not found for search setup.");
+        return;
+      }
+      
+      // Initialize search icon as SVG
+      if (searchIcon) {
+        searchIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>`;
+      }
+      
+      // Debounce function
+      function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+      }
+      
+      // --- MODIFIED Reset search function ---
+      function resetSearch() {
+        if (!treeContainer) {
+            console.warn("Tree container not found in resetSearch during reset operation.");
+            return;
+        }
+        if (searchClear) {
+          searchClear.style.display = 'none';
+        }
+        // Always rebuild the tree to reset to initial collapsed state
+        console.log("Search cleared or empty, rebuilding tree to initial state via displayVariablesData().");
+        displayVariablesData(); 
+      }
+
+      // --- MODIFIED Function to filter tree items based on search text ---
+      const filterTreeItems = debounce(function(searchTerm) {
+        // searchTerm is guaranteed to be non-empty here by the input event listener logic
+        if (!treeContainer) return;
+
+        const allTreeItems = treeContainer.querySelectorAll('.tree-item'); // Renamed for clarity
+        let matchFound = false;
+        
+        allTreeItems.forEach(item => {
+          const labelElement = item.querySelector('.tree-item-label');
+          const itemDataPath = item.dataset.path || ''; 
+
+          if (!labelElement) return;
+          
+          // Restore original label text before applying new highlights
+          labelElement.innerHTML = labelElement.textContent; 
+          
+          const itemText = labelElement.textContent.toLowerCase();
+          const pathText = itemDataPath.toLowerCase();
+          
+          const matchesLabel = itemText.includes(searchTerm);
+          const matchesPath = pathText.includes(searchTerm);
+          
+          if (matchesLabel || matchesPath) {
+            matchFound = true;
+            item.classList.add('search-result'); // Optional: for styling active search results
+            item.style.display = 'block'; // Ensure item is visible
+
+            if (matchesLabel) { // Highlight only if label matches
+              const highlightedText = labelElement.textContent.replace(
+                new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\\\]/g, '\\\\$&')})`, 'gi'),
+                '<span class="search-match">$1</span>'
+              );
+              labelElement.innerHTML = highlightedText;
+            }
+            
+            // Make sure this item and all its parents are visible and expanded
+            let currentElement = item.parentElement; // Start with parent to open containers
+            while (currentElement && currentElement !== treeContainer) {
+              if (currentElement.classList.contains('tree-item')) { // If parent is a tree-item LI
+                currentElement.style.display = 'block';
+                const parentToggle = currentElement.querySelector('.tree-item-toggle');
+                const parentChildrenUl = currentElement.querySelector('.tree-item-children');
+                if (parentToggle && parentChildrenUl) {
+                  parentToggle.classList.add('open');
+                  parentChildrenUl.classList.add('open');
+                }
+              } else if (currentElement.classList.contains('tree-item-children')) { // If parent is a UL
+                 currentElement.classList.add('open'); // Ensure UL is open
+                 // And also ensure its parent LI toggle is open
+                 const liParent = currentElement.closest('.tree-item');
+                 if(liParent){
+                    const liParentToggle = liParent.querySelector('.tree-item-toggle');
+                    if(liParentToggle) liParentToggle.classList.add('open');
+                 }
+
+              }
+              currentElement = currentElement.parentElement;
+            }
+          } else {
+            item.style.display = 'none';
+            item.classList.remove('search-result');
+          }
+        });
+        
+        // Manage "No results" message
+        let noResultsMessageElement = treeContainer.querySelector('.no-results');
+        if (!matchFound) {
+          if (!noResultsMessageElement) {
+            noResultsMessageElement = document.createElement('div');
+            noResultsMessageElement.className = 'no-results';
+            treeContainer.insertBefore(noResultsMessageElement, treeContainer.firstChild);
+          }
+          noResultsMessageElement.textContent = `No tokens match "${searchTerm}"`;
+          noResultsMessageElement.style.display = 'block';
+        } else {
+          if (noResultsMessageElement) {
+            noResultsMessageElement.style.display = 'none';
+          }
+        }
+      }, 250); 
+      
+      // --- MODIFIED Set up search input handler ---
+      searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.trim().toLowerCase();
+        if (searchTerm === '') {
+          resetSearch(); 
+        } else {
+          if(searchClear) searchClear.style.display = 'block';
+          filterTreeItems(searchTerm);
+        }
+      });
+      
+      // --- MODIFIED Set up clear button handler ---
+      if (searchClear) {
+        searchClear.addEventListener('click', function() {
+          searchInput.value = ''; 
+          resetSearch(); 
+        });
+      }
     }
   </script>
 </body>
