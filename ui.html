@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --figma-color-text: #FFFFFF;
+      --tab-wrapper-bg: #2C2C2C;
+      --tab-wrapper-border: #444444;
+      --tab-button-padding: 6px 10px;
+      --tab-button-radius: 4px;
+      --tab-button-font: inherit;
+      --tab-button-font-size: 11px;
+      --tab-button-font-weight: 500;
+      --tab-button-letter-spacing: normal;
+      --tab-default-text-color: #A0A0A0;
+      --tab-default-opacity: 1;
+      --tab-active-text-color: #FFFFFF;
+      --tab-active-opacity: 1;
+      --tab-active-bg: #3C3C3C; 
+    }
+
+    body {
+      font-family: 'Geist Mono', 'Roboto Mono', monospace; /* Changed from Inter */
+      margin: 0;
+      font-size: 11px;
+      color: var(--figma-color-text);
+      min-height: 0; /* Keeping this for now, might be useful for nested flex */
+      overflow: hidden;
+      /* display: flex; Removed to allow container to fill body */
+      height: 100vh; /* Make body take full viewport height */
+    }
+
+    .tab-wrapper {
+      display: flex;
+      flex-shrink: 0;
+      padding: 10px; /* Correct */
+      /* gap: 2px; Removed - moved to inner group */
+      background-color: var(--tab-wrapper-bg); /* Correct (#2C2C2C) */
+      border-bottom: 1px solid var(--tab-wrapper-border); /* Corrected typo and Correct (#444444) */
+      /* width: 100%; Removed - Should hug content based on Figma */
+      /* box-sizing: border-box; Removed */
+      align-items: center; /* Added */
+    }
+
+    /* New inner container for buttons to apply the gap */
+    .tab-button-group {
+        display: flex;
+        align-items: center;
+        gap: 2px; /* Gap applied here, as in Figma's inner Frame 7 */
+    }
+
+    /* Base styles for all tab buttons */
+    .tab-button {
+      padding: var(--tab-button-padding);
+      border-radius: var(--tab-button-radius);
+      font-family: var(--tab-button-font);
+      font-size: var(--tab-button-font-size);
+      font-weight: var(--tab-button-font-weight);
+      letter-spacing: var(--tab-button-letter-spacing);
+      border: none;
+      background: none;
+      cursor: pointer;
+      text-align: center;
+      /* Default State */
+      color: var(--tab-default-text-color);
+      opacity: var(--tab-default-opacity);
+      transition: background-color 0.2s, color 0.2s, opacity 0.2s;
+    }
+
+    /* Active state for all tab buttons */
+    .tab-button.active {
+      color: var(--tab-active-text-color);
+      opacity: var(--tab-active-opacity);
+      background-color: var(--tab-active-bg);
+    }
+
+    /* Hover state for all non-active tab buttons */
+    .tab-button:hover:not(.active) {
+      /* Use active style for hover based on Figma */
+      color: var(--tab-active-text-color);
+      opacity: var(--tab-active-opacity);
+      background-color: var(--tab-active-bg);
+    }
+
+    /* View containers / Tab Content */
+    .tab-content {
+      display: none;
+      height: 100%;
+      overflow: auto;
+      box-sizing: border-box;
+    }
+
+    .tab-content.active {
+      display: flex;
+      flex-direction: row;
+      width: 100%;
+      /* No gap here, border on tree-area handles separation */
+    }
+
+    .views-container {
+      display: flex;
+      flex-grow: 1;
+      min-height: 0;
+      overflow: hidden; /* or auto */
+    }
+
+    .container {
+      display: flex;
+      flex-direction: row; /* Changed from column to row for horizontal layout */
+      height: 100%;
+      width: 100%; /* ADDED */
+      overflow: hidden; /* Prevent unwanted scrollbars */
+    }
+    
+    .header {
+      display: none; /* Hide the header */
+    }
+    
+    /* Flex wrapper for main content areas */
+    .content-wrapper {
+      display: flex;
+      flex-direction: column; /* Keep column for tabs on top */
+      flex-grow: 1;
+      min-height: 0; /* Important for nested flex containers */
+      overflow: hidden;
+    }
+
+    #tree-area {
+      flex-basis: 33%; /* Takes roughly 1/3 of the space */
+      flex-grow: 1;
+      max-width: 30%; /* Added to cap width */
+      padding: 12px; /* Updated from 10px */
+      border-right: 1px solid var(--tab-wrapper-border); /* Consistent border */
+      box-sizing: border-box;
+      overflow-y: auto; /* Allow scrolling if content overflows */
+      display: flex; /* Added for internal layout */
+      flex-direction: column; /* Added for internal layout */
+      gap: 12px; /* Added for internal layout */
+    }
+
+    #output-area {
+      flex-basis: 67%; /* Takes roughly 2/3 of the space */
+      flex-grow: 1;
+      padding: 12px; /* Updated from 10px */
+      box-sizing: border-box;
+      overflow-y: auto; /* Allow scrolling if content overflows */
+      display: flex; /* Added for internal layout */
+      flex-direction: column; /* Added for internal layout */
+      gap: 12px; /* Added for internal layout */
+    }
+
+    /* JSON viewer styles */
+    /* Output Area Header styles */
+    #output-area-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      flex-shrink: 0;
+    }
+
+    /* Action buttons group */
+    .action-button-group {
+      display: flex;
+      gap: 2px;
+    }
+
+    /* Output Area Code styles */
+    #output-area-code {
+      flex-grow: 1;
+      min-height: 0;
+      background-color: #1E1E1E;
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    /* Output code content styles */
+    .output-code-content {
+      display: none;
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+    }
+
+    .output-code-content.active {
+      display: block;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- The old header is hidden -->
+    <!-- <div class="header">...</div> -->
+    
+    <div class="content-wrapper">
+      <!-- New Tab Navigation -->
+      <div class="tab-wrapper">
+        <div class="tab-button-group"> <!-- Added inner group -->
+          <button class="tab-button active" data-target="variables-view">Variables</button>
+          <button class="tab-button" data-target="styles-view">Styles</button>
+          <button class="tab-button" data-target="github-view">Export to Github</button>
+          <button class="tab-button" data-target="settings-view">Settings</button>
+        </div> <!-- Closed inner group -->
+      </div>
+      
+      <!-- Old view selector removed -->
+      <!-- <div class="view-selector-container">...</div> -->
+
+      <div class="views-container">
+        <!-- Variables View -->
+        <div class="tab-content active" id="variables-view">
+          <div id="tree-area">
+            <div id="variables-tree">
+              <div class="spinner"></div>
+            </div>
+          </div>
+          <div id="output-area">
+            <!-- Output Area Header with tabs -->
+            <div id="output-area-header">
+              <div class="tab-button-group"> <!-- For JSON, CSS, Tailwind tabs -->
+                <button class="tab-button output-tab-button active" data-target="json-code-content">JSON</button>
+                <button class="tab-button output-tab-button" data-target="css-code-content">CSS</button>
+                <button class="tab-button output-tab-button" data-target="tailwind-code-content">Tailwind</button>
+              </div>
+              <div class="action-button-group"> <!-- For Download and Copy buttons -->
+                <button class="tab-button" id="download-code-btn">Download code</button>
+                <button class="tab-button" id="copy-code-btn">Copy to clipboard</button>
+              </div>
+            </div>
+
+            <!-- Output Area Code (scrollable content) -->
+            <div id="output-area-code">
+              <!-- JSON Content Pane -->
+              <div id="json-code-content" class="output-code-content active">
+                <p id="json-initial-message" style="padding: 12px; margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+                <pre class="json-viewer" style="display: none;"></pre> <!-- JSON code will go here -->
+              </div>
+              <!-- CSS Content Pane (Placeholder) -->
+              <div id="css-code-content" class="output-code-content">
+                <p style="padding: 12px; margin: 0;">CSS output will appear here.</p>
+              </div>
+              <!-- Tailwind Content Pane (Placeholder) -->
+              <div id="tailwind-code-content" class="output-code-content">
+                <p style="padding: 12px; margin: 0;">Tailwind output will appear here.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      
+        <!-- Styles View -->
+        <div class="tab-content" id="styles-view">
+          <div id="tree-area">
+            Tree Area (Styles)
+          </div>
+          <div id="output-area">
+            Output Area (Styles)
+          </div>
+        </div>
+        
+        <!-- GitHub Export View (Placeholder) -->
+        <div class="tab-content" id="github-view">
+          <div id="output-area">
+            Output Area (Github)
+          </div>
+         </div>
+
+        <!-- Settings View (Placeholder) -->
+         <div class="tab-content" id="settings-view">
+          <div id="output-area">
+            Output Area (Settings)
+          </div>
+         </div>
+
+      <!-- The output-section that was here is now removed -->
+      </div> <!-- End of views-container -->
+    </div>
+  </div>
+  <script>
+    // Document ready event
+    document.addEventListener('DOMContentLoaded', function () {
+      // Main tab switching logic
+      const tabButtons = document.querySelectorAll('.tab-wrapper .tab-button');
+      const tabContents = document.querySelectorAll('.tab-content');
+
+      tabButtons.forEach(button => {
+        // Use passive option for touch events to improve scrolling performance
+        button.addEventListener('touchstart', () => {
+          // Deactivate all buttons and hide all content
+          tabButtons.forEach(btn => btn.classList.remove('active'));
+          tabContents.forEach(content => content.classList.remove('active'));
+
+          // Activate the clicked button
+          button.classList.add('active');
+
+          // Show the target content
+          const targetId = button.getAttribute('data-target');
+          const targetContent = document.getElementById(targetId);
+          if (targetContent) {
+            targetContent.classList.add('active');
+          }
+        }, { passive: true });
+
+        button.addEventListener('click', () => {
+          // Deactivate all buttons and hide all content
+          tabButtons.forEach(btn => btn.classList.remove('active'));
+          tabContents.forEach(content => content.classList.remove('active'));
+
+          // Activate the clicked button
+          button.classList.add('active');
+
+          // Show the target content
+          const targetId = button.getAttribute('data-target');
+          const targetContent = document.getElementById(targetId);
+          if (targetContent) {
+            targetContent.classList.add('active');
+          }
+        });
+      });
+      
+      // Setup the output area tabs
+      setupOutputAreaTabs();
+
+      // Simple message handler - just log messages without trying to fetch variables
+      window.onmessage = event => {
+        const message = event.data.pluginMessage;
+        if (!message) return;
+        
+        console.log('Received message:', message.type);
+        
+        // Update UI based on message type
+        if (message.type === 'error') {
+          console.error('Error:', message.message);
+          document.getElementById('variables-tree').innerHTML = `
+            <div style="color: red; padding: 10px;">
+              Error: ${message.message}
+            </div>
+          `;
+        }
+      };
+      
+      // Remove spinner and show ready message
+      document.getElementById('variables-tree').innerHTML = `
+        <div style="padding: 10px;">
+          Plugin loaded successfully.
+        </div>
+      `;
+    });
+
+    // Setup tabs for the output area
+    function setupOutputAreaTabs() {
+      const outputTabButtons = document.querySelectorAll('#output-area-header .tab-button-group .tab-button');
+      const outputTabContents = document.querySelectorAll('#output-area-code .output-code-content');
+
+      outputTabButtons.forEach(button => {
+        // Use passive option for touch events to improve scrolling performance
+        button.addEventListener('touchstart', () => {
+          // Deactivate all output tabs and hide all output content
+          outputTabButtons.forEach(btn => btn.classList.remove('active'));
+          outputTabContents.forEach(content => content.classList.remove('active'));
+
+          // Activate the clicked button
+          button.classList.add('active');
+
+          // Show the target content
+          const targetId = button.getAttribute('data-target');
+          const targetContent = document.getElementById(targetId);
+          if (targetContent) {
+            targetContent.classList.add('active');
+          }
+        }, { passive: true });
+
+        button.addEventListener('click', () => {
+          // Deactivate all output tabs and hide all output content
+          outputTabButtons.forEach(btn => btn.classList.remove('active'));
+          outputTabContents.forEach(content => content.classList.remove('active'));
+
+          // Activate the clicked button
+          button.classList.add('active');
+
+          // Show the target content
+          const targetId = button.getAttribute('data-target');
+          const targetContent = document.getElementById(targetId);
+          if (targetContent) {
+            targetContent.classList.add('active');
+          }
+        });
+      });
+
+      // Removing unused event listeners for action buttons that are placeholder only
+      // These were causing console warnings without providing functionality
+    }
+  </script>
+</body>
+</html> 
