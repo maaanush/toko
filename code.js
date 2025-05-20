@@ -276,27 +276,12 @@ async function fetchLocalCollections() {
           continue;
         }
         
-        // Reduce logging - only log a limited number of variables being processed
         processedCount++;
         totalProcessedCount++;
-        // if (processedCount <= 2) {
-        //   console.log(`Processing local variable ID: ${variableId} in collection "${localCollection.name}"`);
-        // }
         
         // Task 22: Retrieve Full Local Variable Object by ID
         try {
           const detailedLocalVariable = await figma.variables.getVariableByIdAsync(variableId);
-          
-          // Reduce logging - only log first variable for verification if needed
-          // if (processedCount === 1) {
-          //   console.log(`Example local variable from "${localCollection.name}":`, {
-          //     id: detailedLocalVariable.id,
-          //     name: detailedLocalVariable.name,
-          //     resolvedType: detailedLocalVariable.resolvedType,
-          //     description: detailedLocalVariable.description,
-          //     scopes: detailedLocalVariable.scopes
-          //   });
-          // }
           
           // Task 23: Populate and Store Detailed Local Variable Data
           localCollectionData.variables.push({
@@ -320,17 +305,7 @@ async function fetchLocalCollections() {
     
     // Log the local collections structure for verification
     console.log(`Prepared ${allFetchedVariablesPayload.local.length} local collections (${totalProcessedCount} local variables, ${totalSkippedCount} library variables skipped)`);
-    
-    // Reduce verbosity - don't log sample structures unless needed for debugging
-    // if (allFetchedVariablesPayload.local.length > 0) {
-    //   console.log('Sample local collection structure:', {
-    //     id: allFetchedVariablesPayload.local[0].id,
-    //     name: allFetchedVariablesPayload.local[0].name,
-    //     modesCount: allFetchedVariablesPayload.local[0].modes.length,
-    //     defaultModeId: allFetchedVariablesPayload.local[0].defaultModeId,
-    //     remote: allFetchedVariablesPayload.local[0].remote
-    //   });
-    // }
+
     
     return localCollections;
   } catch (error) {
@@ -425,5 +400,8 @@ async function fetchAndLogAllVariables() {
   }
 }
 
-// Call the main orchestration function
-fetchAndLogAllVariables();
+// Task 28: Trigger fetchAndLogAllVariables at the global level
+// This ensures the entire fetching and logging process executes when the plugin runs
+fetchAndLogAllVariables().then(result => {
+  console.log('Variable fetching process completed');
+});
