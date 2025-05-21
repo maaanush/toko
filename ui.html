@@ -393,6 +393,24 @@
       // Removing unused event listeners for action buttons that are placeholder only
       // These were causing console warnings without providing functionality
     }
+    
+    // Simple message handler - just log messages without trying to fetch variables
+    window.onmessage = event => {
+      const message = event.data.pluginMessage;
+      if (!message) return;
+      
+      console.log('Received message:', message.type);
+      
+      // Update UI based on message type
+      if (message.type === 'error') {
+        console.error('Error:', message.message);
+        document.getElementById('variables-tree').innerHTML = `
+          <div style="color: red; padding: 10px;">
+            Error: ${message.message}
+          </div>
+        `;
+      }
+    };
   </script>
 </body>
 </html> 
