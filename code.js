@@ -367,7 +367,7 @@ function convertToDTCGFormat(figmaData) {
           tokenObject.$value = modeValue.id; // Temporary value
         } else {
           // Handle direct values based on variable type
-          tokenObject.$type = mapFigmaTypeToDTCG(variable.resolvedType);
+          tokenObject.$type = mapFigmaTypeToDTCG(variable.resolvedType, variable.scopes);
           tokenObject.$value = convertFigmaValueToDTCG(modeValue, variable.resolvedType);
         }
         
@@ -546,23 +546,59 @@ function sanitizeForDTCG(name) {
 
 /**
  * Maps Figma variable types to DTCG types
- * @param {string} figmaType - Figma variable type (e.g., COLOR, FLOAT)
+ * @param {string} figmaResolvedType - Figma variable type (e.g., COLOR, FLOAT)
  * @returns {string} - DTCG type
  */
-function mapFigmaTypeToDTCG(figmaType) {
-  if (!figmaType) return 'string';
-  
-  const typeMap = {
-    COLOR: 'color',
-    FLOAT: 'number',
-    STRING: 'string',
-    BOOLEAN: 'string', // DTCG doesn't have a native boolean type
-    NUMBER: 'number',  // Just in case Figma uses NUMBER instead of FLOAT
-    INTEGER: 'number', // Just in case Figma uses INTEGER
-    // Add more mappings as needed
-  };
-  
-  return typeMap[figmaType] || 'string';
+function mapFigmaTypeToDTCG(figmaResolvedType, variableScopes = []) {
+  if (!figmaResolvedType) return 'string'; // Default for safety
+
+  // Handle COLOR type
+  if (figmaResolvedType === 'COLOR') {
+    return 'color';
+  }
+
+  // Handle BOOLEAN type
+  if (figmaResolvedType === 'BOOLEAN') {
+    return 'string'; // DTCG doesn't have a native boolean; will be "true" or "false"
+  }
+
+  // Handle STRING type
+  if (figmaResolvedType === 'STRING') {
+    if (variableScopes.includes('FONT_FAMILY')) {
+      return 'fontFamily';
+    }
+    // For string-based font weights like "Bold", "Regular"
+    if (variableScopes.includes('FONT_WEIGHT')) {
+      return 'fontWeight';
+    }
+    return 'string';
+  }
+
+  // Handle FLOAT type (Figma's representation for numbers)
+  if (figmaResolvedType === 'FLOAT') {
+    // For number-based font weights like 400, 700
+    if (variableScopes.includes('FONT_WEIGHT')) {
+      return 'fontWeight';
+    }
+
+    // Check for scopes that imply a dimension
+    const dimensionScopes = [
+      'FONT_SIZE', 'WIDTH_HEIGHT', 'GAP', 'CORNER_RADIUS', 'BORDER_WIDTH',
+      'LINE_HEIGHT', 'LETTER_SPACING', 'SPACING',
+      'PADDING_TOP', 'PADDING_RIGHT', 'PADDING_BOTTOM', 'PADDING_LEFT',
+      'MARGIN_TOP', 'MARGIN_RIGHT', 'MARGIN_BOTTOM', 'MARGIN_LEFT',
+      'MIN_WIDTH', 'MAX_WIDTH', 'MIN_HEIGHT', 'MAX_HEIGHT'
+    ];
+    if (dimensionScopes.some(scope => variableScopes.includes(scope))) {
+      return 'dimension';
+    }
+    
+    // Default for FLOAT if not a fontWeight or dimension
+    return 'number';
+  }
+
+  // Fallback for any other unknown figmaResolvedType
+  return 'string';
 }
 
 /**
