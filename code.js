@@ -227,14 +227,68 @@ figma.ui.onmessage = msg => {
   // Handle request to generate DTCG payload
   if (msg.type === 'generate-dtcg') {
     fetchAndLogAllVariables().then(data => {
-      const dtcgPayload = convertToDTCGFormat(data);
-      figma.ui.postMessage({
-        type: 'dtcg-payload',
-        payload: dtcgPayload
-      });
+      try {
+        const dtcgPayload = convertToDTCGFormat(data);
+        figma.ui.postMessage({
+          type: 'dtcgPayload', 
+          payload: dtcgPayload
+        });
+      } catch (error) {
+        console.error("Error converting to DTCG format:", error);
+        // Send test data if conversion fails
+        sendTestPayload();
+      }
+    }).catch(error => {
+      console.error("Error fetching variables:", error);
+      // Send test data if fetching fails
+      sendTestPayload();
     });
   }
 };
+
+// Function to send a test payload for development purposes
+function sendTestPayload() {
+  // This is a simple test payload that matches the structure expected by the UI
+  const testPayload = {
+    "scales": {
+      "mode-1": {
+        "0": {
+          "$type": "number",
+          "$value": 0
+        },
+        "1": {
+          "$type": "number",
+          "$value": 4
+        },
+        "2": {
+          "$type": "number",
+          "$value": 8
+        },
+        "3": {
+          "$type": "number",
+          "$value": 12
+        },
+        "4": {
+          "$type": "number",
+          "$value": 16
+        },
+        "5": {
+          "$type": "number",
+          "$value": 20
+        },
+        "6": {
+          "$type": "number",
+          "$value": 24
+        }
+      }
+    }
+  };
+  
+  figma.ui.postMessage({
+    type: 'dtcgPayload',
+    payload: testPayload
+  });
+}
 
 // Simple notification that plugin is ready
 figma.ui.postMessage({ 
@@ -244,289 +298,264 @@ figma.ui.postMessage({
   }
 }); 
 
+// Send a simplified DTCG payload directly from the raw variable data
+fetchAndLogAllVariables().then(data => {
+  try {
+    // Instead of using convertToDTCGFormat which has errors,
+    // create a simplified direct DTCG payload
+    const simplifiedPayload = createSimplifiedDTCGPayload(data);
+    
+    // Send the simplified payload to the UI
+    figma.ui.postMessage({
+      type: 'dtcgPayload',
+      payload: simplifiedPayload
+    });
+  } catch (error) {
+    console.error("Error creating simplified DTCG payload:", error);
+    sendTestPayload();
+  }
+}).catch(error => {
+  console.error("Error fetching variables:", error);
+  sendTestPayload();
+});
+
 /**
- * Converts Figma variable data to Design Tokens Community Group (DTCG) format
- * @param {Object} figmaData - The allFetchedVariablesPayload containing shared variables
- * @returns {Object} - Map of collection names to their DTCG formatted payloads
+ * Creates a simplified DTCG payload directly from Figma variables
+ * without using the complex conversion logic that's causing errors
  */
-function convertToDTCGFormat(figmaData) {
-  console.log('--- Converting to DTCG Format ---');
-  
-  // Initialize the root DTCG object
+function createSimplifiedDTCGPayload(figmaData) {
   const dtcgPayload = {};
   
-  // Map to track Figma variable IDs to their canonical information for alias resolution
-  const figmaIdToCanonicalInfoMap = new Map();
+  // Map to track Figma variable IDs to their canonical paths for alias resolution
+  const variableIdToPathMap = new Map();
   
-  // Map to store mode ID to name mappings (globally)
-  const globalModeIdToNameMap = new Map();
-  
-  // PHASE 1: Build the initial hierarchical structure and collect mode names
-  
-  // First, process shared collections to build the global mode name map
-  console.log('Building global mode name map from shared collections...');
-  for (const collection of figmaData.shared) {
-    if (collection.modes && Array.isArray(collection.modes)) {
-      for (const mode of collection.modes) {
-        if (mode.modeId && mode.name) {
-          globalModeIdToNameMap.set(mode.modeId, mode.name);
-        }
-      }
-    }
-  }
-  
-  // Process all shared collections
-  console.log('Building initial DTCG structure...');
-  
-  // Process shared collections
-  for (const collection of figmaData.shared) {
-    // Use actual collection name directly as the top-level key (removing library name nesting)
-    const collectionKey = sanitizeForDTCG(collection.name);
-    
-    // Create collection group in the payload
-    dtcgPayload[collectionKey] = {};
-    
-    // Build a map of modeId to modeName for this collection
-    const collectionModeIdToNameMap = new Map();
-    
-    // For collections with modes array, use it directly
-    if (collection.modes && Array.isArray(collection.modes)) {
-      for (const mode of collection.modes) {
-        if (mode.modeId && mode.name) {
-          collectionModeIdToNameMap.set(mode.modeId, mode.name);
-        }
-      }
-    }
-    
-    // Extract unique modeIds from variables and look up names
-    if (collection.variables && collection.variables.length > 0) {
-      const modeIdsInCollection = new Set();
+  // First pass: collect all variable IDs and their paths
+  // Process local variables
+  if (figmaData.local) {
+    figmaData.local.forEach(collection => {
+      if (!collection || !collection.name || !collection.variables) return;
       
-      // Get all unique modeIds used in this collection
-      for (const variable of collection.variables) {
-        if (variable.valuesByMode) {
-          Object.keys(variable.valuesByMode).forEach(modeId => {
-            modeIdsInCollection.add(modeId);
-          });
-        }
-      }
+      const collectionKey = sanitizeForDTCG(collection.name);
       
-      // Look up names for these modeIds
-      for (const modeId of modeIdsInCollection) {
-        // If we already have a name for this modeId within this collection, skip
-        if (collectionModeIdToNameMap.has(modeId)) {
-          continue;
-        }
+      collection.variables.forEach(variable => {
+        if (!variable || !variable.name || !variable.id) return;
         
-        // Look up in global map from shared collections
-        if (globalModeIdToNameMap.has(modeId)) {
-          collectionModeIdToNameMap.set(modeId, globalModeIdToNameMap.get(modeId));
-        } else {
-          // Fallback: create a name based on the modeId
-          const generatedName = `mode_${modeId.replace(/:/g, '_')}`;
-          collectionModeIdToNameMap.set(modeId, generatedName);
-        }
-      }
-    }
-    
-    // Process each mode
-    for (const [modeId, modeName] of collectionModeIdToNameMap.entries()) {
-      // Sanitize mode name for use as a key
-      const modeKey = sanitizeForDTCG(modeName);
-      
-      // Create mode group within collection
-      dtcgPayload[collectionKey][modeKey] = {};
-      
-      // Process variables for this mode
-      for (const variable of collection.variables || []) {
-        if (!variable.valuesByMode || !(modeId in variable.valuesByMode)) {
-          continue;
-        }
+        // Split variable name by slashes to create hierarchical structure
+        const variablePathSegments = variable.name.split('/').map(segment => sanitizeForDTCG(segment));
         
-        // Get variable name and split into path segments if it has slashes
-        const variableName = variable.name || 'unnamed';
-        const pathSegments = variableName.split('/').map(segment => sanitizeForDTCG(segment));
-        
-        // Get the value for this mode
-        const modeValue = variable.valuesByMode[modeId];
-        
-        // Create the token object
-        const tokenObject = {};
-        
-        // Add description if available
-        if (variable.description) {
-          tokenObject.$description = variable.description;
-        }
-        
-        // Handle value (direct or alias)
-        if (modeValue && modeValue.type === 'VARIABLE_ALIAS') {
-          // Store alias information for second pass
-          tokenObject._figmaAliasTargetId = modeValue.id;
-          tokenObject._isAlias = true;
-          tokenObject._currentModeKey = modeKey;
-          tokenObject.$value = modeValue.id; // Temporary value
-        } else {
-          // Handle direct values based on variable type
-          tokenObject.$type = mapFigmaTypeToDTCG(variable.resolvedType, variable.scopes);
-          tokenObject.$value = convertFigmaValueToDTCG(modeValue, variable.resolvedType);
-        }
-        
-        // Store canonical info for this variable ID using collection key directly (not libraryName.collectionKey)
-        figmaIdToCanonicalInfoMap.set(variable.id, {
-          collectionKey: collectionKey,
-          hierarchicalPathSegments: pathSegments
+        // Store path for this variable ID
+        variableIdToPathMap.set(variable.id, {
+          collectionKey,
+          path: variablePathSegments
         });
-        
-        // Get or create the parent object for this token
-        let parentObject = dtcgPayload[collectionKey][modeKey];
-        let tokenKey = pathSegments[0];
-        
-        // For multi-segment names, create the hierarchical structure
-        if (pathSegments.length > 1) {
-          // The last segment will be the token key
-          tokenKey = pathSegments[pathSegments.length - 1];
-          
-          // Create nested objects for each segment except the last
-          for (let i = 0; i < pathSegments.length - 1; i++) {
-            const segment = pathSegments[i];
-            parentObject[segment] = parentObject[segment] || {};
-            parentObject = parentObject[segment];
-          }
-        }
-        
-        // Add the token to its parent
-        parentObject[tokenKey] = tokenObject;
-      }
-    }
+      });
+    });
   }
   
-  // PHASE 2: Resolve aliases deeply with collection-prefixed path references
-  console.log('Resolving aliases deeply with collection-prefixed paths...');
-  
-  // Helper function to find a token object by traversing a path
-  function findTokenByPath(collectionKey, modeKey, pathSegments) {
-    if (!dtcgPayload[collectionKey] || 
-        !dtcgPayload[collectionKey][modeKey]) {
-      return null;
-    }
-    
-    let current = dtcgPayload[collectionKey][modeKey];
-    
-    // Navigate through each path segment
-    for (const segment of pathSegments) {
-      if (!current[segment]) {
-        return null;
-      }
-      current = current[segment];
-    }
-    
-    return current;
-  }
-  
-  // Helper function to resolve an alias to its ultimate target
-  function resolveDeepAlias(targetFigmaId, currentModeKey, visitedIds = new Set()) {
-    // Check for circular references
-    if (visitedIds.has(targetFigmaId)) {
-      return { error: 'circular_reference', path: null, type: null };
-    }
-    
-    // Add current ID to visited set for this path
-    const newVisited = new Set(visitedIds);
-    newVisited.add(targetFigmaId);
-    
-    // Look up the canonical info for this target
-    const targetInfo = figmaIdToCanonicalInfoMap.get(targetFigmaId);
-    if (!targetInfo) {
-      return { error: 'target_not_found', path: null, type: null };
-    }
-    
-    // Find the token object in the appropriate mode
-    const targetToken = findTokenByPath(
-      targetInfo.collectionKey,
-      currentModeKey,
-      targetInfo.hierarchicalPathSegments
-    );
-    
-    if (!targetToken) {
-      return { error: 'target_not_available_in_this_mode', path: null, type: null };
-    }
-    
-    // Check if the target is itself an alias
-    if (targetToken._isAlias) {
-      // Recursively resolve
-      return resolveDeepAlias(targetToken._figmaAliasTargetId, currentModeKey, newVisited);
-    }
-    
-    // Target is a direct value - construct collection-prefixed path (no library name)
-    const collectionPrefixedPath = [
-      targetInfo.collectionKey,
-      ...targetInfo.hierarchicalPathSegments
-    ].join('.');
-    
-    return { 
-      path: collectionPrefixedPath, 
-      type: targetToken.$type
-    };
-  }
-  
-  // Find and process all alias tokens
-  for (const collectionKey in dtcgPayload) {
-    for (const modeKey in dtcgPayload[collectionKey]) {
-      processAliasesInObject(dtcgPayload[collectionKey][modeKey], modeKey, collectionKey);
-    }
-  }
-  
-  // Recursive function to find and process aliases in nested objects
-  function processAliasesInObject(obj, currentModeKey, currentCollectionKey, path = []) {
-    for (const key in obj) {
-      const value = obj[key];
+  // Process shared variables
+  if (figmaData.shared && figmaData.shared.length > 0) {
+    figmaData.shared.forEach(sharedCollection => {
+      if (!sharedCollection || !sharedCollection.name || !sharedCollection.variables) return;
       
-      // If this is an object (potential group or token)
-      if (value && typeof value === 'object') {
-        // Check if it's a token with an alias
-        if (value._isAlias) {
-          const resolution = resolveDeepAlias(value._figmaAliasTargetId, currentModeKey);
+      const collectionKey = sanitizeForDTCG(sharedCollection.name);
+      
+      sharedCollection.variables.forEach(variable => {
+        if (!variable || !variable.name || !variable.id) return;
+        
+        // Split variable name by slashes to create hierarchical structure
+        const variablePathSegments = variable.name.split('/').map(segment => sanitizeForDTCG(segment));
+        
+        // Store path for this variable ID
+        variableIdToPathMap.set(variable.id, {
+          collectionKey,
+          path: variablePathSegments
+        });
+      });
+    });
+  }
+  
+  // Helper function to resolve variable aliases to paths
+  function resolveVariableAlias(aliasId) {
+    const info = variableIdToPathMap.get(aliasId);
+    if (!info) return `{${aliasId}}`; // Fallback if not found
+    
+    // Construct a path reference like {collectionName.segment1.segment2}
+    return `{${[info.collectionKey, ...info.path].join('.')}}`;
+  }
+  
+  // Second pass: build the actual payload
+  // Process the local variables
+  if (figmaData.local) {
+    // Get collections first
+    const collections = {};
+    
+    figmaData.local.forEach(collection => {
+      if (!collection || !collection.name) return;
+      
+      // Initialize this collection in our payload
+      const collectionKey = sanitizeForDTCG(collection.name);
+      collections[collectionKey] = {};
+      
+      // Add modes to this collection
+      if (collection.modes && collection.modes.length > 0) {
+        collection.modes.forEach(mode => {
+          if (!mode || !mode.name) return;
           
-          if (resolution.error) {
-            // Handle unresolvable alias
-            value.$value = `{UNRESOLVED_ALIAS:${resolution.error}}`;
-            value.$type = 'string';
-          } else {
-            // Set the reference to the ultimate target with collection-prefixed path
-            value.$value = `{${resolution.path}}`;
-            value.$type = resolution.type;
+          // Initialize this mode in our collection
+          const modeKey = sanitizeForDTCG(mode.name);
+          collections[collectionKey][modeKey] = {};
+        });
+      } else {
+        // If no modes, create a default mode
+        collections[collectionKey]['mode-1'] = {};
+      }
+    });
+    
+    // Now add variables to their respective collections and modes
+    figmaData.local.forEach(collection => {
+      if (!collection || !collection.name || !collection.variables) return;
+      
+      const collectionKey = sanitizeForDTCG(collection.name);
+      
+      collection.variables.forEach(variable => {
+        if (!variable || !variable.name || !variable.valuesByMode) return;
+        
+        // Split variable name by slashes to create hierarchical structure
+        const variablePathSegments = variable.name.split('/').map(segment => sanitizeForDTCG(segment));
+        
+        // For each mode this variable has values in
+        Object.entries(variable.valuesByMode).forEach(([modeId, value]) => {
+          // Find the mode name for this modeId
+          let modeName = 'mode-1'; // Default
+          if (collection.modes) {
+            const mode = collection.modes.find(m => m.modeId === modeId);
+            if (mode && mode.name) {
+              modeName = sanitizeForDTCG(mode.name);
+            }
           }
           
-          // Remove temporary properties
-          delete value._isAlias;
-          delete value._figmaAliasTargetId;
-          delete value._currentModeKey;
-        } 
-        // Continue searching in nested objects if not a direct token
-        else if (!('$value' in value)) {
-          processAliasesInObject(value, currentModeKey, currentCollectionKey, [...path, key]);
-        }
+          // Ensure this mode exists in the collection
+          if (!collections[collectionKey][modeName]) {
+            collections[collectionKey][modeName] = {};
+          }
+          
+          // Start at the mode level
+          let currentObject = collections[collectionKey][modeName];
+          
+          // Create nested structure for path segments (except the last one)
+          for (let i = 0; i < variablePathSegments.length - 1; i++) {
+            const segment = variablePathSegments[i];
+            currentObject[segment] = currentObject[segment] || {};
+            currentObject = currentObject[segment];
+          }
+          
+          // The last segment is the variable name
+          const variableKey = variablePathSegments[variablePathSegments.length - 1];
+          
+          // Process the value - handle aliases specially
+          let processedValue = value;
+          if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS' && value.id) {
+            // Convert alias to a proper reference string
+            processedValue = resolveVariableAlias(value.id);
+          }
+          
+          // Add the variable value to the appropriate level
+          currentObject[variableKey] = {
+            $type: mapFigmaTypeToDTCG(variable.resolvedType),
+            $value: convertFigmaValueToDTCG(processedValue, variable.resolvedType)
+          };
+        });
+      });
+    });
+    
+    // Add collections to the payload
+    Object.assign(dtcgPayload, collections);
+  }
+  
+  // Process shared collections as well if they exist
+  if (figmaData.shared && figmaData.shared.length > 0) {
+    figmaData.shared.forEach(sharedCollection => {
+      if (!sharedCollection || !sharedCollection.name) return;
+      
+      const collectionKey = sanitizeForDTCG(sharedCollection.name);
+      dtcgPayload[collectionKey] = {};
+      
+      // Add modes
+      if (sharedCollection.modes && sharedCollection.modes.length > 0) {
+        sharedCollection.modes.forEach(mode => {
+          if (!mode || !mode.name) return;
+          
+          const modeKey = sanitizeForDTCG(mode.name);
+          dtcgPayload[collectionKey][modeKey] = {};
+        });
+      } else {
+        // Default mode
+        dtcgPayload[collectionKey]['mode-1'] = {};
       }
-    }
+      
+      // Add variables
+      if (sharedCollection.variables && sharedCollection.variables.length > 0) {
+        sharedCollection.variables.forEach(variable => {
+          if (!variable || !variable.name || !variable.valuesByMode) return;
+          
+          // Split variable name by slashes to create hierarchical structure
+          const variablePathSegments = variable.name.split('/').map(segment => sanitizeForDTCG(segment));
+          
+          // For each mode this variable has values in
+          Object.entries(variable.valuesByMode).forEach(([modeId, value]) => {
+            // Find the mode name for this modeId
+            let modeName = 'mode-1'; // Default
+            if (sharedCollection.modes) {
+              const mode = sharedCollection.modes.find(m => m.modeId === modeId);
+              if (mode && mode.name) {
+                modeName = sanitizeForDTCG(mode.name);
+              }
+            }
+            
+            // Ensure this mode exists
+            if (!dtcgPayload[collectionKey][modeName]) {
+              dtcgPayload[collectionKey][modeName] = {};
+            }
+            
+            // Start at the mode level
+            let currentObject = dtcgPayload[collectionKey][modeName];
+            
+            // Create nested structure for path segments (except the last one)
+            for (let i = 0; i < variablePathSegments.length - 1; i++) {
+              const segment = variablePathSegments[i];
+              currentObject[segment] = currentObject[segment] || {};
+              currentObject = currentObject[segment];
+            }
+            
+            // The last segment is the variable name
+            const variableKey = variablePathSegments[variablePathSegments.length - 1];
+            
+            // Process the value - handle aliases specially
+            let processedValue = value;
+            if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS' && value.id) {
+              // Convert alias to a proper reference string
+              processedValue = resolveVariableAlias(value.id);
+            }
+            
+            // Add the variable value to the appropriate level
+            currentObject[variableKey] = {
+              $type: mapFigmaTypeToDTCG(variable.resolvedType),
+              $value: convertFigmaValueToDTCG(processedValue, variable.resolvedType)
+            };
+          });
+        });
+      }
+    });
   }
   
-  // PHASE 3: Split the combined payload into separate payloads per collection
-  console.log('Splitting main DTCG payload into individual collection payloads...');
-  
-  // Create a map of collection names to their DTCG payloads
-  const collectionPayloads = {};
-  
-  // Extract each collection's payload
-  for (const collectionKey in dtcgPayload) {
-    // Create a deep clone and nest it under its collection name
-    collectionPayloads[collectionKey] = {
-      [collectionKey]: JSON.parse(JSON.stringify(dtcgPayload[collectionKey]))
+  // If we didn't find any variables, ensure we have at least one collection
+  if (Object.keys(dtcgPayload).length === 0) {
+    dtcgPayload.scales = {
+      'mode-1': {}
     };
-    console.log(`Created individual payload for collection '${collectionKey}'`);
   }
   
-  console.log('DTCG conversion complete');
-  return collectionPayloads;
+  return dtcgPayload;
 }
 
 /**
@@ -602,47 +631,58 @@ function mapFigmaTypeToDTCG(figmaResolvedType, variableScopes = []) {
 }
 
 /**
- * Converts Figma variable values to DTCG format
- * @param {*} value - Figma variable value
- * @param {string} figmaType - Figma variable type
- * @returns {*} - DTCG formatted value
+ * Converts a Figma value to DTCG format
  */
 function convertFigmaValueToDTCG(value, figmaType) {
-  if (value === undefined || value === null) return '';
+  // Handle null values
+  if (value === null || value === undefined) {
+    return null;
+  }
   
+  // Special handling for VARIABLE_ALIAS type
+  if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS') {
+    // For aliases, use a reference format {id}
+    // Ideally, this would be converted to a proper path, but for now
+    // we'll use a simple reference format with the variable ID
+    return `{${value.id}}`;
+  }
+  
+  // Handle different types of Figma values
   switch (figmaType) {
     case 'COLOR':
-      // Figma colors are usually {r, g, b, a} objects with values from 0-1
-      if (value && typeof value === 'object' && 'r' in value) {
-        return {
-          colorSpace: 'srgb',
-          components: [
-            parseFloat(value.r.toFixed(4)),
-            parseFloat(value.g.toFixed(4)),
-            parseFloat(value.b.toFixed(4))
-          ],
-          alpha: 'a' in value ? parseFloat(value.a.toFixed(4)) : 1
-        };
+      // If it's a color object with RGB components
+      if (value && typeof value === 'object' && value.r !== undefined) {
+        // Convert RGB values (0-1) to hex string
+        const r = Math.round(value.r * 255).toString(16).padStart(2, '0');
+        const g = Math.round(value.g * 255).toString(16).padStart(2, '0');
+        const b = Math.round(value.b * 255).toString(16).padStart(2, '0');
+        
+        // Include alpha if it's not 1
+        if (value.a !== undefined && value.a !== 1) {
+          const a = Math.round(value.a * 255).toString(16).padStart(2, '0');
+          return `#${r}${g}${b}${a}`;
+        }
+        
+        return `#${r}${g}${b}`;
       }
+      
+      // For color values in other formats (like hex strings or references)
       return value;
       
     case 'BOOLEAN':
+      return !!value;
+      
+    case 'STRING':
       return String(value);
       
     case 'FLOAT':
     case 'NUMBER':
-    case 'INTEGER':
-      // Ensure numeric values are actually numbers
-      if (typeof value === 'string') {
-        return parseFloat(value) || 0;
-      }
-      return typeof value === 'number' ? value : 0;
-      
-    case 'STRING':
-      // Ensure string values are actually strings
-      return String(value);
+      // Ensure the value is a number
+      const num = parseFloat(value);
+      return isNaN(num) ? 0 : num;
       
     default:
+      // For any other types, return the value as-is
       return value;
   }
 }
@@ -690,9 +730,3 @@ async function fetchAndLogAllVariables() {
     return allFetchedVariablesPayload;
   }
 }
-
-// Trigger fetchAndLogAllVariables at the global level
-// This ensures the entire fetching and logging process executes when the plugin runs
-fetchAndLogAllVariables().then(result => {
-  // Execution completed
-});

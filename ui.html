@@ -183,10 +183,100 @@
       width: 100%;
       height: 100%;
       overflow-y: auto;
+      padding: 12px;
+      box-sizing: border-box;
     }
 
     .output-code-content.active {
       display: block;
+    }
+
+    /* Add styling for the json-viewer */
+    .json-viewer {
+      margin: 0;
+      padding: 0;
+      font-family: 'Geist Mono', 'Roboto Mono', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    /* Checkbox tree styles */
+    .checkbox-tree {
+      list-style-type: none;
+      padding-left: 0;
+      margin: 0;
+      font-family: 'Geist Mono', 'Roboto Mono', monospace;
+      font-size: 11px;
+    }
+
+    .checkbox-tree ul {
+      list-style-type: none;
+      padding-left: 16px; /* Changed from 20px to 16px */
+      margin: 0;
+    }
+
+    .checkbox-tree li {
+      margin: 6px 0;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+    }
+
+    .checkbox-label {
+      margin-left: 6px;
+      cursor: pointer;
+      user-select: none; /* Prevent text selection */
+      color: var(--figma-color-text);
+    }
+
+    /* Custom checkbox styling to match Figma's design */
+    .checkbox-tree input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border: 1px solid #666;
+      border-radius: 4px;
+      background-color: transparent;
+      display: inline-block;
+      position: relative;
+      cursor: pointer;
+      vertical-align: middle;
+    }
+
+    .checkbox-tree input[type="checkbox"]:checked {
+      background-color: #ffffff;
+      border-color: #ffffff;
+    }
+
+    .checkbox-tree input[type="checkbox"]:checked::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 1px;
+      width: 3px;
+      height: 6px;
+      border: solid rgb(0, 0, 0);
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    .checkbox-tree input[type="checkbox"]:indeterminate {
+      background-color: #272727;
+      
+    }
+
+    .checkbox-tree input[type="checkbox"]:indeterminate::after {
+      content: '';
+      position: absolute;
+      top: 5px;
+      right: 3.5px;
+      width: 5px;
+      height: 2px;
+      background-color: white;
     }
 
   </style>
@@ -236,16 +326,16 @@
             <div id="output-area-code">
               <!-- JSON Content Pane -->
               <div id="json-code-content" class="output-code-content active">
-                <p id="json-initial-message" style="padding: 12px; margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+                <p id="json-initial-message" style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
                 <pre class="json-viewer" style="display: none;"></pre> <!-- JSON code will go here -->
               </div>
               <!-- CSS Content Pane (Placeholder) -->
               <div id="css-code-content" class="output-code-content">
-                <p style="padding: 12px; margin: 0;">CSS output will appear here.</p>
+                <p style="margin: 0;">CSS output will appear here.</p>
               </div>
               <!-- Tailwind Content Pane (Placeholder) -->
               <div id="tailwind-code-content" class="output-code-content">
-                <p style="padding: 12px; margin: 0;">Tailwind output will appear here.</p>
+                <p style="margin: 0;">Tailwind output will appear here.</p>
               </div>
             </div>
           </div>
@@ -324,7 +414,7 @@
       // Setup the output area tabs
       setupOutputAreaTabs();
 
-      // Simple message handler - just log messages without trying to fetch variables
+      // Simplified message handler - properly handle real data and display it
       window.onmessage = event => {
         const message = event.data.pluginMessage;
         if (!message) return;
@@ -339,16 +429,208 @@
               Error: ${message.message}
             </div>
           `;
+        } 
+        // Handle DTCG payload specifically
+        else if (message.type === 'dtcgPayload' && message.payload) {
+          console.log('Received DTCG payload:', message.payload);
+          renderCheckboxTree(message.payload);
+        }
+        // Handle generic plugin-info message
+        else if (message.type === 'plugin-info') {
+          console.log('Plugin info:', message.payload);
+          document.getElementById('variables-tree').innerHTML = `
+            <div style="padding: 10px;">
+              ${message.payload.message || "Plugin loaded successfully. Waiting for variables data..."}
+            </div>
+          `;
         }
       };
-      
-      // Remove spinner and show ready message
-      document.getElementById('variables-tree').innerHTML = `
-        <div style="padding: 10px;">
-          Plugin loaded successfully.
-        </div>
-      `;
     });
+
+    // Function to render the checkbox tree from DTCG payload
+    function renderCheckboxTree(payload) {
+      const treeContainer = document.getElementById('variables-tree');
+      treeContainer.innerHTML = ''; // Clear existing content
+      
+      // Create the root UL element for the tree
+      const rootUl = document.createElement('ul');
+      rootUl.className = 'checkbox-tree';
+      
+      // Handle empty payload
+      if (!payload || Object.keys(payload).length === 0) {
+        treeContainer.innerHTML = `
+          <div style="padding: 10px;">
+            No variables found. Please ensure your Figma file contains variables.
+          </div>
+        `;
+        return;
+      }
+      
+      // Generate tree structure recursively
+      generateTreeNodes(payload, rootUl);
+      
+      // Append the tree to the container
+      treeContainer.appendChild(rootUl);
+      
+      // Also update the JSON view with the complete payload
+      updateJsonView(payload);
+    }
+    
+    // Recursive function to generate tree nodes
+    function generateTreeNodes(data, parentElement, path = []) {
+      // Process each key-value pair in the current object
+      for (const key in data) {
+        const value = data[key];
+        const currentPath = [...path, key];
+        
+        // Create list item
+        const li = document.createElement('li');
+        li.setAttribute('data-path', currentPath.join('.'));
+        
+        // Create checkbox item wrapper
+        const checkboxItem = document.createElement('div');
+        checkboxItem.className = 'checkbox-item';
+        
+        // Create checkbox
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `checkbox-${currentPath.join('-')}`;
+        checkbox.setAttribute('data-path', currentPath.join('.'));
+        
+        // Create label
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        label.htmlFor = checkbox.id;
+        label.textContent = key;
+        
+        // Add title for tooltip on hover (include full path for context)
+        label.title = currentPath.join(' > ');
+        
+        // Add checkbox and label to the wrapper
+        checkboxItem.appendChild(checkbox);
+        checkboxItem.appendChild(label);
+        li.appendChild(checkboxItem);
+        
+        // Determine if this is a token or a group
+        const isToken = value && typeof value === 'object' && '$type' in value && '$value' in value;
+        const isGroup = value && typeof value === 'object' && !isToken;
+        
+        if (isGroup) {
+          // This is a branch node with children
+          const ul = document.createElement('ul');
+          li.appendChild(ul);
+          
+          // Recursively generate children
+          generateTreeNodes(value, ul, currentPath);
+          
+          // Setup event listener for this checkbox
+          checkbox.addEventListener('change', handleCheckboxChange);
+        } else if (isToken) {
+          // This is a leaf node (token)
+          checkbox.addEventListener('change', handleCheckboxChange);
+        } else {
+          // This is a simple leaf node
+          checkbox.addEventListener('change', handleCheckboxChange);
+        }
+        
+        // Add the list item to the parent element
+        parentElement.appendChild(li);
+      }
+    }
+    
+    // Handle checkbox change events
+    function handleCheckboxChange(event) {
+      const checkbox = event.target;
+      const isChecked = checkbox.checked;
+      const path = checkbox.getAttribute('data-path');
+      
+      // Propagate state to children (if any)
+      propagateStateToChildren(checkbox, isChecked);
+      
+      // Update parent states
+      updateParentStates(checkbox);
+      
+      // Update the selection state in the JSON view
+      updateSelectionState();
+    }
+    
+    // Propagate checkbox state to all children
+    function propagateStateToChildren(checkbox, isChecked) {
+      // Find the parent <li> of this checkbox
+      const li = checkbox.closest('li');
+      
+      // Find all child checkboxes within this <li>
+      const childCheckboxes = li.querySelectorAll('ul input[type="checkbox"]');
+      
+      // Set each child's checked state to match the parent
+      childCheckboxes.forEach(childCheckbox => {
+        childCheckbox.checked = isChecked;
+      });
+    }
+    
+    // Update the state of all parent checkboxes
+    function updateParentStates(checkbox) {
+      // Find the parent <li> of this checkbox
+      const li = checkbox.closest('li');
+      
+      // Get the parent <ul> and then its parent <li> (if any)
+      const parentUl = li.parentElement;
+      if (parentUl && parentUl.parentElement && parentUl.parentElement.tagName === 'LI') {
+        const parentLi = parentUl.parentElement;
+        const parentCheckbox = parentLi.querySelector('input[type="checkbox"]');
+        
+        // Check the state of all sibling checkboxes
+        const siblingCheckboxes = Array.from(parentUl.querySelectorAll('li > .checkbox-item > input[type="checkbox"]'));
+        
+        // Count checked and total checkboxes
+        const totalSiblings = siblingCheckboxes.length;
+        const checkedSiblings = siblingCheckboxes.filter(cb => cb.checked).length;
+        
+        if (checkedSiblings === 0) {
+          // None checked
+          parentCheckbox.checked = false;
+          parentCheckbox.indeterminate = false;
+        } else if (checkedSiblings === totalSiblings) {
+          // All checked
+          parentCheckbox.checked = true;
+          parentCheckbox.indeterminate = false;
+        } else {
+          // Some checked
+          parentCheckbox.checked = false;
+          parentCheckbox.indeterminate = true;
+        }
+        
+        // Recursively update higher parent levels
+        updateParentStates(parentCheckbox);
+      }
+    }
+    
+    // Update the selection state in the JSON view
+    function updateSelectionState() {
+      // This is a placeholder for future functionality
+      // Here you would collect all checked paths and update the JSON view
+      const checkedBoxes = document.querySelectorAll('.checkbox-tree input[type="checkbox"]:checked');
+      const checkedPaths = Array.from(checkedBoxes).map(cb => cb.getAttribute('data-path'));
+      
+      console.log('Selected paths:', checkedPaths);
+      
+      // In a future implementation, you could filter the JSON view based on these selections
+    }
+    
+    // Update the JSON view with the current payload
+    function updateJsonView(payload) {
+      const jsonViewer = document.querySelector('.json-viewer');
+      const initialMessage = document.getElementById('json-initial-message');
+      
+      if (jsonViewer && initialMessage) {
+        // Hide the initial message and show the JSON viewer
+        initialMessage.style.display = 'none';
+        jsonViewer.style.display = 'block';
+        
+        // Format the JSON with 2-space indentation
+        jsonViewer.textContent = JSON.stringify(payload, null, 2);
+      }
+    }
 
     // Setup tabs for the output area
     function setupOutputAreaTabs() {
@@ -393,24 +675,6 @@
       // Removing unused event listeners for action buttons that are placeholder only
       // These were causing console warnings without providing functionality
     }
-    
-    // Simple message handler - just log messages without trying to fetch variables
-    window.onmessage = event => {
-      const message = event.data.pluginMessage;
-      if (!message) return;
-      
-      console.log('Received message:', message.type);
-      
-      // Update UI based on message type
-      if (message.type === 'error') {
-        console.error('Error:', message.message);
-        document.getElementById('variables-tree').innerHTML = `
-          <div style="color: red; padding: 10px;">
-            Error: ${message.message}
-          </div>
-        `;
-      }
-    };
   </script>
 </body>
 </html> 
