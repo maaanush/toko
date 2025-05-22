@@ -235,94 +235,57 @@ figma.ui.onmessage = msg => {
         });
       } catch (error) {
         console.error("Error converting to DTCG format:", error);
-        // Send test data if conversion fails
-        sendTestPayload();
+        // Send error message to UI
+        figma.ui.postMessage({
+          type: 'error',
+          message: `Failed to convert variables: ${error.message}`
+        });
       }
     }).catch(error => {
       console.error("Error fetching variables:", error);
-      // Send test data if fetching fails
-      sendTestPayload();
+      // Send error message to UI
+      figma.ui.postMessage({
+        type: 'error',
+        message: `Failed to fetch variables: ${error.message}`
+      });
     });
   }
 };
 
-// Function to send a test payload for development purposes
-function sendTestPayload() {
-  // This is a simple test payload that matches the structure expected by the UI
-  const testPayload = {
-    "scales": {
-      "mode-1": {
-        "0": {
-          "$type": "number",
-          "$value": 0
-        },
-        "1": {
-          "$type": "number",
-          "$value": 4
-        },
-        "2": {
-          "$type": "number",
-          "$value": 8
-        },
-        "3": {
-          "$type": "number",
-          "$value": 12
-        },
-        "4": {
-          "$type": "number",
-          "$value": 16
-        },
-        "5": {
-          "$type": "number",
-          "$value": 20
-        },
-        "6": {
-          "$type": "number",
-          "$value": 24
-        }
-      }
-    }
-  };
-  
-  figma.ui.postMessage({
-    type: 'dtcgPayload',
-    payload: testPayload
-  });
-}
-
-// Simple notification that plugin is ready
-figma.ui.postMessage({ 
+// Send an initial plugin-info message when the plugin starts
+figma.ui.postMessage({
   type: 'plugin-info',
   payload: {
-    message: 'Plugin loaded successfully'
+    message: 'Plugin loaded. Fetching variables...'
   }
-}); 
+});
 
-// Send a simplified DTCG payload directly from the raw variable data
+// Automatically fetch and send data when the plugin UI loads
 fetchAndLogAllVariables().then(data => {
   try {
-    // Instead of using convertToDTCGFormat which has errors,
-    // create a simplified direct DTCG payload
-    const simplifiedPayload = createSimplifiedDTCGPayload(data);
+    // Use createSimplifiedDTCGPayload with the raw data part of the fetched result
+    const simplifiedPayload = createSimplifiedDTCGPayload(data.raw || data); // data.raw for compatibility, or data if raw is not present
     
-    // Send the simplified payload to the UI
     figma.ui.postMessage({
       type: 'dtcgPayload',
       payload: simplifiedPayload
     });
   } catch (error) {
-    console.error("Error creating simplified DTCG payload:", error);
-    sendTestPayload();
+    console.error("Error creating simplified DTCG payload on initial load:", error);
+    figma.ui.postMessage({
+      type: 'error',
+      message: `Failed to process variables on load: ${error.message}`
+    });
   }
 }).catch(error => {
-  console.error("Error fetching variables:", error);
-  sendTestPayload();
+  console.error("Error fetching variables on initial load:", error);
+  figma.ui.postMessage({
+    type: 'error',
+    message: `Failed to fetch variables on load: ${error.message}`
+  });
 });
 
-/**
- * Creates a simplified DTCG payload directly from Figma variables
- * without using the complex conversion logic that's causing errors
- */
+// Function to create a simplified DTCG-compatible payload from Figma variables data
 function createSimplifiedDTCGPayload(figmaData) {
   const dtcgPayload = {};
   
