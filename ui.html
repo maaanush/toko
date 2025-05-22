@@ -419,8 +419,6 @@
         const message = event.data.pluginMessage;
         if (!message) return;
         
-        console.log('Received message:', message.type);
-        
         // Update UI based on message type
         if (message.type === 'error') {
           console.error('Error:', message.message);
@@ -432,12 +430,10 @@
         } 
         // Handle DTCG payload specifically
         else if (message.type === 'dtcgPayload' && message.payload) {
-          console.log('Received DTCG payload:', message.payload);
           renderCheckboxTree(message.payload);
         }
         // Handle generic plugin-info message
         else if (message.type === 'plugin-info') {
-          console.log('Plugin info:', message.payload);
           document.getElementById('variables-tree').innerHTML = `
             <div style="padding: 10px;">
               ${message.payload.message || "Plugin loaded successfully. Waiting for variables data..."}
