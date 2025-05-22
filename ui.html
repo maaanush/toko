@@ -214,15 +214,33 @@
       list-style-type: none;
       padding-left: 16px; /* Changed from 20px to 16px */
       margin: 0;
+      /* Add display: none by default for collapsed state */
+      display: none;
+    }
+
+    /* Show children when parent has expanded class */
+    .checkbox-tree li.expanded > ul {
+      display: block;
     }
 
     .checkbox-tree li {
-      margin: 6px 0;
+      margin: 4px 0; /* Reduced from 6px to 4px in y-axis */
     }
 
     .checkbox-item {
       display: flex;
       align-items: center;
+      /* Add justify-content to position chevron on the right */
+      justify-content: space-between;
+      cursor: pointer;
+      padding: 2px; /* Add 2px padding all around */
+      border-radius: 4px; /* Add 4px corner radius */
+      transition: background-color 0.2s ease; /* Smooth transition for hover effect */
+    }
+
+    /* Add hover state for checkbox-item */
+    .checkbox-item:hover {
+      background-color: #282828; /* Background color on hover */
     }
 
     .checkbox-label {
@@ -230,6 +248,36 @@
       cursor: pointer;
       user-select: none; /* Prevent text selection */
       color: var(--figma-color-text);
+    }
+
+    /* Checkbox & label container */
+    .checkbox-label-container {
+      display: flex;
+      align-items: center;
+    }
+
+    /* Chevron styles */
+    .chevron-icon {
+      width: 12px;
+      height: 12px;
+      transition: transform 0.2s ease;
+      opacity: 0;
+    }
+
+    /* Show chevron on hover for collapsed items */
+    .checkbox-item:hover .chevron-icon {
+      opacity: 0.8;
+    }
+
+    /* Always show chevron for expanded items */
+    .expanded > .checkbox-item .chevron-icon {
+      opacity: 0.8;
+      transform: rotate(0deg);
+    }
+
+    /* Rotate chevron for collapsed items */
+    .chevron-icon {
+      transform: rotate(-90deg);
     }
 
     /* Custom checkbox styling to match Figma's design */
@@ -487,6 +535,10 @@
         const checkboxItem = document.createElement('div');
         checkboxItem.className = 'checkbox-item';
         
+        // Create checkbox label container
+        const checkboxLabelContainer = document.createElement('div');
+        checkboxLabelContainer.className = 'checkbox-label-container';
+        
         // Create checkbox
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
@@ -502,10 +554,12 @@
         // Add title for tooltip on hover (include full path for context)
         label.title = currentPath.join(' > ');
         
-        // Add checkbox and label to the wrapper
-        checkboxItem.appendChild(checkbox);
-        checkboxItem.appendChild(label);
-        li.appendChild(checkboxItem);
+        // Add checkbox and label to container
+        checkboxLabelContainer.appendChild(checkbox);
+        checkboxLabelContainer.appendChild(label);
+        
+        // Add container to item wrapper
+        checkboxItem.appendChild(checkboxLabelContainer);
         
         // Determine if this is a token or a group
         const isToken = value && typeof value === 'object' && '$type' in value && '$value' in value;
@@ -513,7 +567,28 @@
         
         if (isGroup) {
           // This is a branch node with children
+          
+          // Create chevron for group
+          const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          chevron.setAttribute('width', '12');
+          chevron.setAttribute('height', '12');
+          chevron.setAttribute('viewBox', '0 0 12 12');
+          chevron.setAttribute('fill', 'none');
+          chevron.classList.add('chevron-icon');
+          
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', 'M3 4.5L6 7.5L9 4.5');
+          path.setAttribute('stroke', 'white');
+          path.setAttribute('stroke-opacity', '0.8');
+          path.setAttribute('stroke-linecap', 'round');
+          path.setAttribute('stroke-linejoin', 'round');
+          
+          chevron.appendChild(path);
+          checkboxItem.appendChild(chevron);
+          
+          // Create child list
           const ul = document.createElement('ul');
+          li.appendChild(checkboxItem);
           li.appendChild(ul);
           
           // Recursively generate children
@@ -521,11 +596,19 @@
           
           // Setup event listener for this checkbox
           checkbox.addEventListener('change', handleCheckboxChange);
-        } else if (isToken) {
-          // This is a leaf node (token)
-          checkbox.addEventListener('change', handleCheckboxChange);
+          
+          // Add click event for expanding/collapsing
+          checkboxItem.addEventListener('click', function(e) {
+            // Prevent this from triggering when clicking the checkbox directly
+            if (e.target !== checkbox) {
+              e.preventDefault();
+              li.classList.toggle('expanded');
+              e.stopPropagation();
+            }
+          });
         } else {
-          // This is a simple leaf node
+          // This is a leaf node (token)
+          li.appendChild(checkboxItem);
           checkbox.addEventListener('change', handleCheckboxChange);
         }
         
@@ -539,6 +622,9 @@
       const checkbox = event.target;
       const isChecked = checkbox.checked;
       const path = checkbox.getAttribute('data-path');
+      
+      // Stop propagation to prevent the expand/collapse from triggering
+      event.stopPropagation();
       
       // Propagate state to children (if any)
       propagateStateToChildren(checkbox, isChecked);
@@ -573,10 +659,10 @@
       const parentUl = li.parentElement;
       if (parentUl && parentUl.parentElement && parentUl.parentElement.tagName === 'LI') {
         const parentLi = parentUl.parentElement;
-        const parentCheckbox = parentLi.querySelector('input[type="checkbox"]');
+        const parentCheckbox = parentLi.querySelector('.checkbox-label-container > input[type="checkbox"]');
         
         // Check the state of all sibling checkboxes
-        const siblingCheckboxes = Array.from(parentUl.querySelectorAll('li > .checkbox-item > input[type="checkbox"]'));
+        const siblingCheckboxes = Array.from(parentUl.querySelectorAll('li > .checkbox-item > .checkbox-label-container > input[type="checkbox"]'));
         
         // Count checked and total checkboxes
         const totalSiblings = siblingCheckboxes.length;
