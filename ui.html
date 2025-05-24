@@ -537,6 +537,9 @@
         } else if (msg.type === 'jsCodePreview') {
           // console.log("Received jsCodePreview:", msg.payload); // Removed logging
           updateJSView(msg.payload);
+        } else if (msg.type === 'cssCodePreview') {
+          // console.log("Received cssCodePreview:", msg.payload); // Removed logging
+          updateCSSView(msg.payload);
         } else if (msg.type === 'error') {
           console.error("Error from plugin:", msg.message);
           // Display error in UI if needed
@@ -722,6 +725,18 @@
           } 
         }, '*');
       }
+      
+      // If CSS tab is active, also update the CSS view
+      const cssTab = document.querySelector('[data-target="css-code-content"]');
+      if (cssTab && cssTab.classList.contains('active')) {
+        // Request CSS code generation with the filtered payload
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'request-css-code',
+            payload: filteredDtcg
+          } 
+        }, '*');
+      }
     }
     
     // Generate filtered DTCG payload based on checkbox selections
@@ -895,6 +910,11 @@
           if (targetId === 'js-code-content') {
             handleJSTabActivation();
           }
+          
+          // Handle CSS tab specific logic
+          if (targetId === 'css-code-content') {
+            handleCSSTabActivation();
+          }
         }, { passive: true });
 
         button.addEventListener('click', () => {
@@ -916,6 +936,11 @@
           if (targetId === 'js-code-content') {
             handleJSTabActivation();
           }
+          
+          // Handle CSS tab specific logic
+          if (targetId === 'css-code-content') {
+            handleCSSTabActivation();
+          }
         });
       });
 
@@ -932,6 +957,20 @@
       parent.postMessage({ 
         pluginMessage: { 
           type: 'request-js-code',
+          payload: filteredDtcg
+        } 
+      }, '*');
+    }
+    
+    // Handle CSS tab activation
+    function handleCSSTabActivation() {
+      // Generate the filtered DTCG payload based on current selections
+      const filteredDtcg = generateFilteredDtcgPayload();
+      
+      // Request CSS code generation from the plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-css-code',
           payload: filteredDtcg
         } 
       }, '*');
@@ -1001,6 +1040,21 @@
         } else {
           // Show placeholder message
           jsCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+        }
+      }
+    }
+    
+    // Update the CSS view with the current payload
+    function updateCSSView(payload) {
+      const cssCodeContent = document.getElementById('css-code-content');
+      
+      if (cssCodeContent) {
+        if (payload && payload.code && payload.code.trim() !== '') {
+          // Simply show the CSS code directly, like JS does
+          cssCodeContent.innerHTML = `<pre class="json-viewer">${payload.code}</pre>`;
+        } else {
+          // Show placeholder message
+          cssCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
         }
       }
     }

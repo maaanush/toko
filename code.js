@@ -329,6 +329,31 @@ figma.ui.onmessage = msg => {
       });
     }
   }
+  
+  // Handle request to generate CSS code
+  if (msg.type === 'request-css-code') {
+    try {
+      const payloadToUse = msg.payload || latestDtcgPayload;
+      if (payloadToUse) {
+        const cssData = generateCSSCodeFromPayload(payloadToUse);
+        figma.ui.postMessage({
+          type: 'cssCodePreview',
+          payload: cssData
+        });
+      } else {
+        figma.ui.postMessage({
+          type: 'error',
+          message: 'No DTCG payload available. Please generate variables first.'
+        });
+      }
+    } catch (error) {
+      console.error("Error generating CSS code:", error);
+      figma.ui.postMessage({
+        type: 'error',
+        message: `Failed to generate CSS code: ${error.message}`
+      });
+    }
+  }
 };
 
 // Send an initial plugin-info message when the plugin starts
@@ -934,4 +959,143 @@ function generateJSCodeRecursive(currentValue, pathContext, indentLevel) {
   
   // Fallback for unknown types
   return 'null';
+}
+
+/**
+ * Generates CSS code from a DTCG payload
+ * @param {Object} dtcgPayload - The DTCG payload object
+ * @returns {Object} - Object with code and structure properties
+ */
+function generateCSSCodeFromPayload(dtcgPayload) {
+  if (!dtcgPayload || typeof dtcgPayload !== 'object') {
+    return { code: '', structure: {} };
+  }
+  
+  const cssRules = [];
+  
+  // Iterate through each collection in the DTCG payload
+  for (const collectionName in dtcgPayload) {
+    const collection = dtcgPayload[collectionName];
+    
+    if (!collection || typeof collection !== 'object') continue;
+    
+    // Iterate through each mode in the collection
+    for (const modeName in collection) {
+      const modeData = collection[modeName];
+      
+      if (!modeData || typeof modeData !== 'object') continue;
+      
+      // Create CSS class selector
+      const sanitizedCollectionName = sanitizeForDTCG(collectionName);
+      const sanitizedModeName = sanitizeForDTCG(modeName);
+      const selector = `.${sanitizedCollectionName}-${sanitizedModeName}`;
+      
+      // Generate CSS variables for this scope
+      const variablesForScope = generateScopedCSSVariables(modeData, [], collectionName, modeName);
+      
+      // Only add rule if there are variables
+      if (variablesForScope.length > 0) {
+        const ruleContent = variablesForScope.map(variable => `  ${variable}`).join('\n');
+        cssRules.push(`${selector} {\n${ruleContent}\n}`);
+      }
+    }
+  }
+  
+  // Join all CSS rules
+  const finalCssString = cssRules.join('\n\n');
+  
+  return {
+    code: finalCssString,
+    structure: dtcgPayload
+  };
+}
+
+/**
+ * Recursively generates CSS variables for a specific mode scope
+ * @param {Object} dataNode - The current object being processed within the mode
+ * @param {Array} currentRelativePath - Path segments relative to the current mode
+ * @param {string} currentCollectionName - The collection being processed
+ * @param {string} currentModeName - The mode being processed
+ * @returns {Array} - Array of CSS variable declaration strings
+ */
+function generateScopedCSSVariables(dataNode, currentRelativePath, currentCollectionName, currentModeName) {
+  const cssVariables = [];
+  
+  if (!dataNode || typeof dataNode !== 'object') {
+    return cssVariables;
+  }
+  
+  for (const key in dataNode) {
+    const value = dataNode[key];
+    
+    // Check if this is a token (has $type and $value)
+    if (value && typeof value === 'object' && value.$type && value.$value !== undefined) {
+      // This is a token - generate CSS variable
+      const variableName = `--${[...currentRelativePath, key].join('-')}`;
+      
+      let cssValue;
+      
+      // Handle alias values
+      if (typeof value.$value === 'string' && value.$value.startsWith('{') && value.$value.endsWith('}')) {
+        // This is an alias - resolve it using the same logic as JS generation
+        cssValue = resolveCSSAlias(value.$value, currentCollectionName, currentModeName);
+      } else {
+        // Direct value - convert using existing function
+        cssValue = convertFigmaValueToDTCG(value.$value, value.$type);
+        // For CSS, ensure string values are quoted if needed
+        if (typeof cssValue === 'string' && !cssValue.startsWith('#') && !cssValue.endsWith('px') && !cssValue.includes('var(')) {
+          cssValue = `'${cssValue}'`;
+        }
+      }
+      
+      cssVariables.push(`${variableName}: ${cssValue};`);
+    } else if (value && typeof value === 'object') {
+      // This is a group - recurse deeper
+      const nestedVariables = generateScopedCSSVariables(
+        value, 
+        [...currentRelativePath, key], 
+        currentCollectionName, 
+        currentModeName
+      );
+      cssVariables.push(...nestedVariables);
+    }
+  }
+  
+  return cssVariables;
+}
+
+/**
+ * Resolves a CSS alias using the same logic as JS generation
+ * @param {string} aliasString - The alias string like "{colors.slate.3}"
+ * @param {string} currentCollectionName - Current collection context
+ * @param {string} currentModeName - Current mode context
+ * @returns {string} - CSS var() reference
+ */
+function resolveCSSAlias(aliasString, currentCollectionName, currentModeName) {
+  // Extract inner path: "{colors.slate.3}" -> "colors.slate.3"
+  const innerPath = aliasString.slice(1, -1);
+  const segments = innerPath.split('.');
+  
+  // Use current mode as context (similar to JS generation logic)
+  const contextSegment = currentModeName;
+  
+  let finalSegments;
+  if (contextSegment && segments.length > 1) {
+    // Inject context: ['colors', 'slate', '3'] + 'light' -> ['colors', 'light', 'slate', '3']
+    finalSegments = [segments[0], contextSegment, ...segments.slice(1)];
+  } else {
+    finalSegments = segments;
+  }
+  
+  // For CSS, we need the path relative to the target's scope
+  // If finalSegments is ['colors', 'light', 'slate', '3'], 
+  // the relative path within .colors-light scope would be ['slate', '3']
+  if (finalSegments.length >= 3) {
+    // Remove collection and mode to get relative path
+    const relativePath = finalSegments.slice(2);
+    return `var(--${relativePath.join('-')})`;
+  } else {
+    // Fallback - use the segments as-is
+    return `var(--${finalSegments.join('-')})`;
+  }
 }
