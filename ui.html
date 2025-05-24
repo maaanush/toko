@@ -531,9 +531,12 @@
         if (msg.type === 'plugin-info') {
           console.log(msg.payload.message);
         } else if (msg.type === 'dtcgPayload') {
-          console.log("Received dtcgPayload:", msg.payload);
+          // console.log("Received dtcgPayload:", msg.payload); // Removed logging
           originalDtcgPayload = msg.payload; // Store the full payload
           renderCheckboxTree(msg.payload);
+        } else if (msg.type === 'jsCodePreview') {
+          // console.log("Received jsCodePreview:", msg.payload); // Removed logging
+          updateJSView(msg.payload);
         } else if (msg.type === 'error') {
           console.error("Error from plugin:", msg.message);
           // Display error in UI if needed
@@ -653,7 +656,9 @@
           generateTreeNodes(value, ul, currentPath);
           
           // Setup event listener for this checkbox
-          checkbox.addEventListener('change', handleCheckboxChange);
+          checkbox.addEventListener('change', function(event) {
+            handleCheckboxChange(event.target);
+          });
           
           // Add click event for expanding/collapsing
           checkboxItem.addEventListener('click', function(e) {
@@ -667,7 +672,9 @@
         } else {
           // This is a leaf node (token)
           li.appendChild(checkboxItem);
-          checkbox.addEventListener('change', handleCheckboxChange);
+          checkbox.addEventListener('change', function(event) {
+            handleCheckboxChange(event.target);
+          });
           
           // Add click event for toggling checkbox on leaf nodes
           checkboxItem.addEventListener('click', function(e) {
@@ -689,13 +696,8 @@
     }
     
     // Handle checkbox change events
-    function handleCheckboxChange(event) {
-      const checkbox = event.target;
+    function handleCheckboxChange(checkbox) {
       const isChecked = checkbox.checked;
-      const path = checkbox.getAttribute('data-path');
-      
-      // Stop propagation to prevent the expand/collapse from triggering
-      event.stopPropagation();
       
       // Propagate state to children (if any)
       propagateStateToChildren(checkbox, isChecked);
@@ -708,6 +710,18 @@
       
       // Update the JSON view with the filtered payload
       updateJsonView(filteredDtcg);
+      
+      // If JS tab is active, also update the JS view
+      const jsTab = document.querySelector('[data-target="js-code-content"]');
+      if (jsTab && jsTab.classList.contains('active')) {
+        // Request JS code generation with the filtered payload
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'request-js-code',
+            payload: filteredDtcg
+          } 
+        }, '*');
+      }
     }
     
     // Generate filtered DTCG payload based on checkbox selections
@@ -855,28 +869,6 @@
       }
     }
     
-    // Update the JSON view with the current payload
-    function updateJsonView(payload) {
-      const jsonViewer = document.querySelector('.json-viewer');
-      const initialMessage = document.getElementById('json-initial-message');
-      
-      if (jsonViewer && initialMessage) {
-        if (payload && Object.keys(payload).length > 0) {
-          // Hide the initial message and show the JSON viewer
-          initialMessage.style.display = 'none';
-          jsonViewer.style.display = 'block';
-          
-          // Format the JSON with 2-space indentation
-          jsonViewer.textContent = JSON.stringify(payload, null, 2);
-        } else {
-          // Payload is empty - show initial message
-          initialMessage.style.display = 'block';
-          jsonViewer.style.display = 'none';
-          jsonViewer.textContent = ''; // Clear any previous JSON
-        }
-      }
-    }
-
     // Setup tabs for the output area
     function setupOutputAreaTabs() {
       const outputTabButtons = document.querySelectorAll('#output-area-header .tab-button-group .tab-button');
@@ -898,6 +890,11 @@
           if (targetContent) {
             targetContent.classList.add('active');
           }
+          
+          // Handle JS tab specific logic
+          if (targetId === 'js-code-content') {
+            handleJSTabActivation();
+          }
         }, { passive: true });
 
         button.addEventListener('click', () => {
@@ -914,11 +911,98 @@
           if (targetContent) {
             targetContent.classList.add('active');
           }
+          
+          // Handle JS tab specific logic
+          if (targetId === 'js-code-content') {
+            handleJSTabActivation();
+          }
         });
       });
 
       // Removing unused event listeners for action buttons that are placeholder only
       // These were causing console warnings without providing functionality
+    }
+    
+    // Handle JS tab activation
+    function handleJSTabActivation() {
+      // Generate the filtered DTCG payload based on current selections
+      const filteredDtcg = generateFilteredDtcgPayload();
+      
+      // Request JS code generation from the plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-js-code',
+          payload: filteredDtcg
+        } 
+      }, '*');
+    }
+    
+    // Update the JSON view with the current payload
+    function updateJsonView(payload) {
+      const jsonViewer = document.querySelector('.json-viewer');
+      const initialMessage = document.getElementById('json-initial-message');
+      
+      if (jsonViewer && initialMessage) {
+        if (payload && Object.keys(payload).length > 0) {
+          // Hide the initial message and show the JSON viewer
+          initialMessage.style.display = 'none';
+          jsonViewer.style.display = 'block';
+          
+          // Format the JSON with 2-space indentation
+          jsonViewer.textContent = JSON.stringify(payload, null, 2);
+        } else {
+          // Payload is empty - show initial message
+          initialMessage.style.display = 'block';
+          jsonViewer.style.display = 'none';
+          jsonViewer.textContent = ''; // Clear any previous JSON
+        }
+      }
+    }
+    
+    // Update the JS view with the current payload  
+    function updateJSView(jsPayload) {
+      const jsCodeContent = document.getElementById('js-code-content');
+      
+      if (jsCodeContent) {
+        // Handle the new payload structure with both code and structure
+        if (jsPayload && typeof jsPayload === 'object' && jsPayload.code) {
+          const jsCode = jsPayload.code;
+          const structure = jsPayload.structure;
+          
+          if (jsCode && jsCode.trim() !== '{}') {
+            // Create a container with two sections: structure and code
+            jsCodeContent.innerHTML = `
+              <div style="display: flex; flex-direction: column; height: 100%; gap: 12px;">
+                <div style="flex: 1; min-height: 0;">
+                  <h4 style="margin: 0 0 8px 0; color: #A0A0A0; font-size: 11px; font-weight: 500;">Object Structure</h4>
+                  <div style="background: #2C2C2C; border-radius: 4px; padding: 12px; height: calc(100% - 32px); overflow-y: auto;">
+                    <pre class="json-viewer" style="margin: 0;">${JSON.stringify(structure, null, 2)}</pre>
+                  </div>
+                </div>
+                <div style="flex: 1; min-height: 0;">
+                  <h4 style="margin: 0 0 8px 0; color: #A0A0A0; font-size: 11px; font-weight: 500;">Generated JavaScript Code</h4>
+                  <div style="background: #2C2C2C; border-radius: 4px; padding: 12px; height: calc(100% - 32px); overflow-y: auto;">
+                    <pre class="json-viewer" style="margin: 0;">${jsCode}</pre>
+                  </div>
+                </div>
+              </div>
+            `;
+          } else {
+            // Show placeholder message
+            jsCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+          }
+        } else if (typeof jsPayload === 'string') {
+          // Handle legacy string payload (fallback)
+          if (jsPayload && jsPayload.trim() !== '{}') {
+            jsCodeContent.innerHTML = `<pre class="json-viewer">${jsPayload}</pre>`;
+          } else {
+            jsCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+          }
+        } else {
+          // Show placeholder message
+          jsCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+        }
+      }
     }
   </script>
 </body>

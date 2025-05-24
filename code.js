@@ -1,6 +1,55 @@
 // This shows the HTML page in Figma.
 figma.showUI(__html__, { width: 1000, height: 700, themeColors: true });
 
+/**
+ * Helper function to round numbers to a maximum of 3 decimal places and remove trailing zeros
+ * @param {number} num - The number to round
+ * @returns {number} - The rounded number
+ */
+function roundToMaxThreeDecimals(num) {
+  if (typeof num !== 'number' || isNaN(num)) {
+    return num;
+  }
+  
+  // Round to 3 decimal places
+  const rounded = Math.round(num * 1000) / 1000;
+  
+  // Remove trailing zeros by converting to string and back to number
+  return parseFloat(rounded.toString());
+}
+
+/**
+ * Helper function to convert RGB to HSL
+ * @param {number} r - Red value (0-1)
+ * @param {number} g - Green value (0-1)
+ * @param {number} b - Blue value (0-1)
+ * @returns {Object} - Object with h, s, l values
+ */
+function rgbToHsl(r, g, b) {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+
+  if (max === min) {
+    h = s = 0; // achromatic
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100)
+  };
+}
+
 // Create the main object to hold all fetched variable data
 let allFetchedVariablesPayload = {
   shared: [] // Array of shared library collections with their variables
@@ -231,7 +280,9 @@ figma.ui.onmessage = msg => {
   if (msg.type === 'generate-dtcg') {
     fetchAndLogAllVariables().then(data => {
       try {
-        const dtcgPayload = convertToDTCGFormat(data);
+        const dtcgPayload = createSimplifiedDTCGPayload(data.raw || data);
+        // Store the payload for JS code generation
+        latestDtcgPayload = dtcgPayload;
         figma.ui.postMessage({
           type: 'dtcgPayload', 
           payload: dtcgPayload
@@ -253,6 +304,31 @@ figma.ui.onmessage = msg => {
       });
     });
   }
+  
+  // Handle request to generate JS code
+  if (msg.type === 'request-js-code') {
+    try {
+      const payloadToUse = msg.payload || latestDtcgPayload;
+      if (payloadToUse) {
+        const jsCode = generateJSCodeFromPayload(payloadToUse);
+        figma.ui.postMessage({
+          type: 'jsCodePreview',
+          payload: jsCode
+        });
+      } else {
+        figma.ui.postMessage({
+          type: 'error',
+          message: 'No DTCG payload available. Please generate variables first.'
+        });
+      }
+    } catch (error) {
+      console.error("Error generating JS code:", error);
+      figma.ui.postMessage({
+        type: 'error',
+        message: `Failed to generate JS code: ${error.message}`
+      });
+    }
+  }
 };
 
 // Send an initial plugin-info message when the plugin starts
@@ -268,6 +344,9 @@ fetchAndLogAllVariables().then(data => {
   try {
     // Use createSimplifiedDTCGPayload with the raw data part of the fetched result
     const simplifiedPayload = createSimplifiedDTCGPayload(data.raw || data); // data.raw for compatibility, or data if raw is not present
+    
+    // Store the payload for JS code generation
+    latestDtcgPayload = simplifiedPayload;
     
     figma.ui.postMessage({
       type: 'dtcgPayload',
@@ -639,16 +718,18 @@ function convertFigmaValueToDTCG(value, figmaType) {
     case 'COLOR':
       // If it's a color object with RGB components
       if (value && typeof value === 'object' && value.r !== undefined) {
-        // Convert RGB values (0-1) to hex string
+        // Check if color has opacity (alpha < 1)
+        if (value.a !== undefined && value.a !== 1) {
+          // Use HSLA format for colors with opacity
+          const hsl = rgbToHsl(value.r, value.g, value.b);
+          const alpha = roundToMaxThreeDecimals(value.a);
+          return `hsla(${hsl.h}, ${hsl.s}%, ${hsl.l}%, ${alpha})`;
+        }
+        
+        // Use hex format for opaque colors
         const r = Math.round(value.r * 255).toString(16).padStart(2, '0');
         const g = Math.round(value.g * 255).toString(16).padStart(2, '0');
         const b = Math.round(value.b * 255).toString(16).padStart(2, '0');
-        
-        // Include alpha if it's not 1
-        if (value.a !== undefined && value.a !== 1) {
-          const a = Math.round(value.a * 255).toString(16).padStart(2, '0');
-          return `#${r}${g}${b}${a}`;
-        }
         
         return `#${r}${g}${b}`;
       }
@@ -666,7 +747,7 @@ function convertFigmaValueToDTCG(value, figmaType) {
     case 'NUMBER':
       // Ensure the value is a number
       const num = parseFloat(value);
-      return isNaN(num) ? 0 : num;
+      return isNaN(num) ? 0 : roundToMaxThreeDecimals(num);
       
     default:
       // For any other types, return the value as-is
@@ -684,22 +765,17 @@ async function fetchAndLogAllVariables() {
     
     // Convert fetched variables to DTCG format
     console.log('--- Converting to DTCG Format ---');
-    const collectionPayloads = convertToDTCGFormat(allFetchedVariablesPayload);
+    const simplifiedPayload = createSimplifiedDTCGPayload(allFetchedVariablesPayload);
     
-    // Log individual collection payloads instead of one massive payload
-    console.log('--- Individual Collection DTCG Payloads ---');
-    for (const collectionName in collectionPayloads) {
-      console.log(`Collection: ${collectionName}`);
-      console.log(JSON.stringify(collectionPayloads[collectionName], null, 2));
-      console.log('----------------------------');
-    }
-    
+    // Log the simplified payload
+    console.log('--- DTCG Payload ---');
+    // console.log(JSON.stringify(simplifiedPayload, null, 2));
     console.log('--- DTCG Conversion Complete ---');
     
     // End of orchestration function
     return {
       raw: allFetchedVariablesPayload,
-      dtcg: collectionPayloads
+      dtcg: simplifiedPayload
     };
   } catch (error) {
     // Add error to payload if it exists
@@ -716,4 +792,146 @@ async function fetchAndLogAllVariables() {
     
     return allFetchedVariablesPayload;
   }
+}
+
+// Store the latest DTCG payload for JS code generation
+let latestDtcgPayload = null;
+
+/**
+ * Generates JavaScript code from a DTCG payload
+ * @param {Object} dtcgPayload - The DTCG payload object
+ * @returns {string} - The generated JavaScript code
+ */
+function generateJSCodeFromPayload(dtcgPayload) {
+  if (!dtcgPayload || typeof dtcgPayload !== 'object') {
+    return '{}';
+  }
+  
+  // Phase 1: Generate JS with placeholders
+  const intermediateJsString = generateJSCodeRecursive(dtcgPayload, [], 0);
+  
+  // Phase 2: Replace placeholders with actual bracket notation
+  const finalJsString = intermediateJsString.replace(/LB/g, '["').replace(/RB/g, '"]');
+  
+  return finalJsString;
+}
+
+/**
+ * Recursively generates JavaScript code from a value
+ * @param {*} currentValue - The current value being processed
+ * @param {Array} pathContext - Array of keys representing the path to this value's parent
+ * @param {number} indentLevel - Current indentation level for pretty printing
+ * @returns {string} - The generated JavaScript code for this value
+ */
+function generateJSCodeRecursive(currentValue, pathContext, indentLevel) {
+  const indent = '  '.repeat(indentLevel);
+  const nextIndent = '  '.repeat(indentLevel + 1);
+  
+  // Handle null and undefined
+  if (currentValue === null || currentValue === undefined) {
+    return 'null';
+  }
+  
+  // Handle primitives
+  if (typeof currentValue === 'string') {
+    return `'${currentValue.replace(/'/g, "\\'")}'`;
+  }
+  
+  if (typeof currentValue === 'number' || typeof currentValue === 'boolean') {
+    if (typeof currentValue === 'number') {
+      return String(roundToMaxThreeDecimals(currentValue));
+    }
+    return String(currentValue);
+  }
+  
+  // Handle arrays
+  if (Array.isArray(currentValue)) {
+    if (currentValue.length === 0) {
+      return '[]';
+    }
+    
+    const arrayElements = currentValue.map(item => 
+      generateJSCodeRecursive(item, pathContext, indentLevel + 1)
+    );
+    
+    return `[\n${nextIndent}${arrayElements.join(`,\n${nextIndent}`)}\n${indent}]`;
+  }
+  
+  // Handle objects
+  if (typeof currentValue === 'object') {
+    // Check for special transformation node (DTCG token with $type and $value)
+    if (currentValue.$type && currentValue.$value !== undefined) {
+      const valStr = currentValue.$value;
+      
+      // Handle path transformation logic for values like "{colors.slate.2}"
+      if (typeof valStr === 'string' && valStr.startsWith('{') && valStr.endsWith('}')) {
+        // Extract inner path: "{colors.slate.2}" -> "colors.slate.2"
+        const innerPath = valStr.slice(1, -1);
+        const segments = innerPath.split('.');
+        
+        // Determine context for injection based on pathContext
+        // For example, if pathContext is ['enso_colors', 'light', 'fill', 'default'],
+        // we want to inject 'light' as the second segment
+        let contextSegment = null;
+        if (pathContext.length >= 2) {
+          // Try to find a mode/theme context - typically the second level in structure
+          contextSegment = pathContext[1];
+        }
+        
+        let finalSegments;
+        if (contextSegment && segments.length > 1) {
+          // Inject context: ['colors', 'slate', '2'] + 'light' -> ['colors', 'light', 'slate', '2']
+          finalSegments = [segments[0], contextSegment, ...segments.slice(1)];
+        } else {
+          finalSegments = segments;
+        }
+        
+        // Join segments with dots to form base path
+        let pathString = finalSegments.join('.');
+        
+        // Check if the last segment is purely numeric
+        const lastSegment = finalSegments[finalSegments.length - 1];
+        if (/^\d+$/.test(lastSegment)) {
+          // Replace the last dot and number with LB[number]RB
+          const lastDotIndex = pathString.lastIndexOf('.');
+          if (lastDotIndex !== -1) {
+            pathString = pathString.substring(0, lastDotIndex) + 'LB' + lastSegment + 'RB';
+          }
+        }
+        
+        return pathString;
+      }
+      
+      // Handle literal string values (like "#16120c")
+      if (typeof valStr === 'string') {
+        return `'${valStr.replace(/'/g, "\\'")}'`;
+      }
+      
+      // Handle other value types
+      return generateJSCodeRecursive(valStr, pathContext, indentLevel);
+    }
+    
+    // Regular object handling
+    const keys = Object.keys(currentValue);
+    if (keys.length === 0) {
+      return '{}';
+    }
+    
+    const objectEntries = keys.map(key => {
+      const value = currentValue[key];
+      const newPathContext = [...pathContext, key];
+      
+      // Format the key - quote if not a valid JS identifier
+      const formattedKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key) ? key : `'${key}'`;
+      
+      const valueCode = generateJSCodeRecursive(value, newPathContext, indentLevel + 1);
+      
+      return `${nextIndent}${formattedKey}: ${valueCode}`;
+    });
+    
+    return `{\n${objectEntries.join(',\n')}\n${indent}}`;
+  }
+  
+  // Fallback for unknown types
+  return 'null';
 }
