@@ -1149,6 +1149,7 @@ function generateTailwindCodeFromPayload(dtcgPayload) {
   const dtcgTypeToTailwindSection = {
     'color': 'colors',
     'dimension': 'spacing',
+    'number': 'spacing',
     'fontFamily': 'fontFamily',
     'fontWeight': 'fontWeight',
     'fontStyle': 'fontStyle',
