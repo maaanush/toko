@@ -19,6 +19,9 @@
       --tab-active-text-color: #FFFFFF;
       --tab-active-opacity: 1;
       --tab-active-bg: #3C3C3C; 
+      /* Add new variables for the warning banner */
+      --warning-banner-bg: #4E3534; /* Updated darker red background */
+      --warning-banner-text: #FADEDC; /* Updated light pink/peach text */
     }
 
     body {
@@ -327,9 +330,51 @@
       background-color: white;
     }
 
+    /* New styles for the warning banner */
+    .warning-banner {
+      background-color: var(--warning-banner-bg);
+      color: var(--warning-banner-text);
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 10px;
+      line-height: 1.6;
+      display: none; /* Hidden by default */
+      position: relative; /* For positioning the close button */
+    }
+
+    .warning-banner p {
+      margin: 0;
+      padding-right: 20px; /* Space for the close button */
+    }
+
+    .warning-banner .close-btn {
+      position: absolute;
+      top: 16px;
+      right: 10px;
+      background: none;
+      border: none;
+      color: var(--warning-banner-text);
+      font-size: 18px;
+      font-weight: 500;
+      cursor: pointer;
+      opacity: 0.7;
+    }
+    .warning-banner .close-btn:hover {
+      opacity: 1;
+    }
+    /* End of new styles for warning banner */
+
   </style>
 </head>
 <body>
+  <!-- Remove the warning banner from here -->
+  <!--
+  <div id="global-warning-banner" class="warning-banner">
+    <p id="global-warning-message"></p>
+    <button class="close-btn" onclick="document.getElementById('global-warning-banner').style.display = 'none';">&times;</button>
+  </div>
+  -->
+
   <div class="container">
     <!-- The old header is hidden -->
     <!-- <div class="header">...</div> -->
@@ -361,6 +406,7 @@
             <div id="output-area-header">
               <div class="tab-button-group"> <!-- For JSON, CSS, Tailwind tabs -->
                 <button class="tab-button output-tab-button active" data-target="json-code-content">JSON</button>
+                <button class="tab-button output-tab-button" data-target="js-code-content">Js</button>
                 <button class="tab-button output-tab-button" data-target="css-code-content">CSS</button>
                 <button class="tab-button output-tab-button" data-target="tailwind-code-content">Tailwind</button>
               </div>
@@ -370,20 +416,32 @@
               </div>
             </div>
 
+            <!-- Add the warning banner here, between header and code output -->
+            <div id="global-warning-banner" class="warning-banner">
+              <p id="global-warning-message">Some variable aliases couldn't be resolved due to missing libraries — please enable all required Figma libraries and restart the plugin.</p>
+              <button class="close-btn" onclick="document.getElementById('global-warning-banner').style.display = 'none';">&times;</button>
+            </div>
+
             <!-- Output Area Code (scrollable content) -->
             <div id="output-area-code">
               <!-- JSON Content Pane -->
               <div id="json-code-content" class="output-code-content active">
+                <!-- Remove the warning banner from here -->
+                
                 <p id="json-initial-message" style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
                 <pre class="json-viewer" style="display: none;"></pre> <!-- JSON code will go here -->
               </div>
+              <!-- Js Content Pane (Placeholder) -->
+              <div id="js-code-content" class="output-code-content">
+                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+              </div>
               <!-- CSS Content Pane (Placeholder) -->
               <div id="css-code-content" class="output-code-content">
-                <p style="margin: 0;">CSS output will appear here.</p>
+                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
               </div>
               <!-- Tailwind Content Pane (Placeholder) -->
               <div id="tailwind-code-content" class="output-code-content">
-                <p style="margin: 0;">Tailwind output will appear here.</p>
+                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
               </div>
             </div>
           </div>
@@ -418,6 +476,9 @@
     </div>
   </div>
   <script>
+    // Store the original DTCG payload
+    let originalDtcgPayload = null;
+    
     // Document ready event
     document.addEventListener('DOMContentLoaded', function () {
       // Main tab switching logic
@@ -463,30 +524,27 @@
       setupOutputAreaTabs();
 
       // Simplified message handler - properly handle real data and display it
-      window.onmessage = event => {
-        const message = event.data.pluginMessage;
-        if (!message) return;
-        
-        // Update UI based on message type
-        if (message.type === 'error') {
-          console.error('Error:', message.message);
-          document.getElementById('variables-tree').innerHTML = `
-            <div style="color: red; padding: 10px;">
-              Error: ${message.message}
-            </div>
-          `;
-        } 
-        // Handle DTCG payload specifically
-        else if (message.type === 'dtcgPayload' && message.payload) {
-          renderCheckboxTree(message.payload);
-        }
-        // Handle generic plugin-info message
-        else if (message.type === 'plugin-info') {
-          document.getElementById('variables-tree').innerHTML = `
-            <div style="padding: 10px;">
-              ${message.payload.message || "Plugin loaded successfully. Waiting for variables data..."}
-            </div>
-          `;
+      window.onmessage = async (event) => {
+        const msg = event.data.pluginMessage;
+        if (!msg) return;
+
+        if (msg.type === 'plugin-info') {
+          console.log(msg.payload.message);
+        } else if (msg.type === 'dtcgPayload') {
+          console.log("Received dtcgPayload:", msg.payload);
+          originalDtcgPayload = msg.payload; // Store the full payload
+          renderCheckboxTree(msg.payload);
+        } else if (msg.type === 'error') {
+          console.error("Error from plugin:", msg.message);
+          // Display error in UI if needed
+        } else if (msg.type === 'warning-potential-missing-source') {
+          console.warn("Warning from plugin:", msg.payload.message);
+          const banner = document.getElementById('global-warning-banner');
+          const messageEl = document.getElementById('global-warning-message');
+          if (banner && messageEl) {
+            messageEl.textContent = "Some variable aliases couldn't be resolved due to missing libraries—please enable all required Figma libraries and restart the plugin.";
+            banner.style.display = 'block';
+          }
         }
       };
     });
@@ -516,8 +574,8 @@
       // Append the tree to the container
       treeContainer.appendChild(rootUl);
       
-      // Also update the JSON view with the complete payload
-      updateJsonView(payload);
+      // Initialize JSON view with empty object to show the "select items" message
+      updateJsonView({});
     }
     
     // Recursive function to generate tree nodes
@@ -610,6 +668,19 @@
           // This is a leaf node (token)
           li.appendChild(checkboxItem);
           checkbox.addEventListener('change', handleCheckboxChange);
+          
+          // Add click event for toggling checkbox on leaf nodes
+          checkboxItem.addEventListener('click', function(e) {
+            // Prevent this from triggering when clicking the checkbox directly
+            if (e.target !== checkbox) {
+              e.preventDefault();
+              checkbox.checked = !checkbox.checked;
+              // Trigger the change event manually
+              const changeEvent = new Event('change', { bubbles: true });
+              checkbox.dispatchEvent(changeEvent);
+              e.stopPropagation();
+            }
+          });
         }
         
         // Add the list item to the parent element
@@ -632,8 +703,104 @@
       // Update parent states
       updateParentStates(checkbox);
       
-      // Update the selection state in the JSON view
-      updateSelectionState();
+      // Generate filtered DTCG payload based on current checkbox selections
+      const filteredDtcg = generateFilteredDtcgPayload();
+      
+      // Update the JSON view with the filtered payload
+      updateJsonView(filteredDtcg);
+    }
+    
+    // Generate filtered DTCG payload based on checkbox selections
+    function generateFilteredDtcgPayload() {
+      if (!originalDtcgPayload) {
+        return {}; // Safety check
+      }
+
+      const filteredOutput = {};
+      
+      // Process each top-level collection
+      for (const collectionName of Object.keys(originalDtcgPayload)) {
+        // Process this collection recursively
+        const filteredCollection = processNodeRecursively(
+          originalDtcgPayload[collectionName],
+          [collectionName]
+        );
+        
+        // Only add non-null results to the output
+        if (filteredCollection !== null) {
+          filteredOutput[collectionName] = filteredCollection;
+        }
+      }
+      
+      return filteredOutput;
+    }
+    
+    /**
+     * Recursively processes a node and its children based on checkbox states
+     * @param {Object} nodeData - The data for this node from the original payload
+     * @param {Array} path - Array of strings representing the path to this node
+     * @returns {Object|null} - Filtered data or null if this node should be excluded
+     */
+    function processNodeRecursively(nodeData, path) {
+      // Get the checkbox for this node
+      const checkbox = findCheckboxByPath(path);
+      
+      // If checkbox doesn't exist or is unchecked, exclude this branch
+      if (!checkbox || (!checkbox.checked && !checkbox.indeterminate)) {
+        return null;
+      }
+      
+      // If this node is a leaf (has $type and $value)
+      if (nodeData && typeof nodeData === 'object' && nodeData.$type && nodeData.$value !== undefined) {
+        // For leaf nodes, only include if explicitly checked
+        return checkbox.checked ? JSON.parse(JSON.stringify(nodeData)) : null;
+      }
+      
+      // If the checkbox is checked (not just indeterminate), include the entire subtree
+      if (checkbox.checked) {
+        return JSON.parse(JSON.stringify(nodeData));
+      }
+      
+      // For indeterminate state, we need to selectively include children
+      if (checkbox.indeterminate && typeof nodeData === 'object') {
+        const result = {};
+        let hasSelectedChildren = false;
+        
+        // Process each child
+        for (const childName of Object.keys(nodeData)) {
+          const childPath = [...path, childName];
+          const filteredChild = processNodeRecursively(nodeData[childName], childPath);
+          
+          // Only include non-null results
+          if (filteredChild !== null) {
+            result[childName] = filteredChild;
+            hasSelectedChildren = true;
+          }
+        }
+        
+        // Return the result if it has any selected children, otherwise null
+        return hasSelectedChildren ? result : null;
+      }
+      
+      // Default fallback
+      return null;
+    }
+    
+    /**
+     * Finds a checkbox element by its path
+     * @param {Array} path - Array of string segments representing the path
+     * @returns {HTMLElement|null} - The checkbox element or null if not found
+     */
+    function findCheckboxByPath(path) {
+      if (!path || !path.length) return null;
+      
+      // Build the path string used in the data-path attribute
+      const pathString = path.join('.');
+      
+      // Try to find the checkbox directly using the path
+      return document.querySelector(
+        `input[type="checkbox"][data-path="${pathString}"]`
+      );
     }
     
     // Propagate checkbox state to all children
@@ -647,6 +814,7 @@
       // Set each child's checked state to match the parent
       childCheckboxes.forEach(childCheckbox => {
         childCheckbox.checked = isChecked;
+        childCheckbox.indeterminate = false;
       });
     }
     
@@ -687,28 +855,25 @@
       }
     }
     
-    // Update the selection state in the JSON view
-    function updateSelectionState() {
-      // This is a placeholder for future functionality
-      // Here you would collect all checked paths and update the JSON view
-      const checkedBoxes = document.querySelectorAll('.checkbox-tree input[type="checkbox"]:checked');
-      const checkedPaths = Array.from(checkedBoxes).map(cb => cb.getAttribute('data-path'));
-      
-      // In a future implementation, you could filter the JSON view based on these selections
-    }
-    
     // Update the JSON view with the current payload
     function updateJsonView(payload) {
       const jsonViewer = document.querySelector('.json-viewer');
       const initialMessage = document.getElementById('json-initial-message');
       
       if (jsonViewer && initialMessage) {
-        // Hide the initial message and show the JSON viewer
-        initialMessage.style.display = 'none';
-        jsonViewer.style.display = 'block';
-        
-        // Format the JSON with 2-space indentation
-        jsonViewer.textContent = JSON.stringify(payload, null, 2);
+        if (payload && Object.keys(payload).length > 0) {
+          // Hide the initial message and show the JSON viewer
+          initialMessage.style.display = 'none';
+          jsonViewer.style.display = 'block';
+          
+          // Format the JSON with 2-space indentation
+          jsonViewer.textContent = JSON.stringify(payload, null, 2);
+        } else {
+          // Payload is empty - show initial message
+          initialMessage.style.display = 'block';
+          jsonViewer.style.display = 'none';
+          jsonViewer.textContent = ''; // Clear any previous JSON
+        }
       }
     }
 

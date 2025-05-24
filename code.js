@@ -15,6 +15,9 @@ let variableKeyToIdMap = new Map();
 // Initialize a map to store local ID to library variable key mappings
 let variableIdToKeyMap = new Map();
 
+// Set to track unresolved alias IDs that might be due to missing libraries or problematic local variables
+let unresolvedAliaseIdsSuspectedMissingSource = new Set();
+
 /**
  * Fetches available library variable collections from team libraries
  */
@@ -291,6 +294,8 @@ function createSimplifiedDTCGPayload(figmaData) {
   
   // Map to track Figma variable IDs to their canonical paths for alias resolution
   const variableIdToPathMap = new Map();
+  // Clear the set at the beginning of each payload creation
+  unresolvedAliaseIdsSuspectedMissingSource.clear();
   
   // First pass: collect all variable IDs and their paths
   // Process local variables
@@ -340,7 +345,14 @@ function createSimplifiedDTCGPayload(figmaData) {
   // Helper function to resolve variable aliases to paths
   function resolveVariableAlias(aliasId) {
     const info = variableIdToPathMap.get(aliasId);
-    if (!info) return `{${aliasId}}`; // Fallback if not found
+    if (!info) { // Alias is unresolved
+      // If the plugin has no record of importing a library variable that resulted in this local ID,
+      // it's a strong candidate for a missing library or a problematic local variable.
+      if (!variableIdToKeyMap.has(aliasId)) {
+        unresolvedAliaseIdsSuspectedMissingSource.add(aliasId);
+      }
+      return `{${aliasId}}`; // Fallback if not found
+    }
     
     // Construct a path reference like {collectionName.segment1.segment2}
     return `{${[info.collectionKey, ...info.path].join('.')}}`;
@@ -516,6 +528,18 @@ function createSimplifiedDTCGPayload(figmaData) {
     dtcgPayload.scales = {
       'mode-1': {}
     };
+  }
+  
+  // After processing all variables, check if there were any suspected missing sources
+  if (unresolvedAliaseIdsSuspectedMissingSource.size > 0) {
+    figma.ui.postMessage({
+      type: 'warning-potential-missing-source',
+      payload: {
+        message: "Some variable aliases could not be resolved (e.g., appearing as {id}). This might be because they point to variables in Figma libraries that are not currently added to this file, or to local variables that no longer exist or are unnamed. Please check that all necessary libraries are linked to this Figma file and that all local variables are correctly defined.",
+        // Optional: provide the list of IDs for advanced users or debugging
+        // unresolvedIds: Array.from(unresolvedAliaseIdsSuspectedMissingSource)
+      }
+    });
   }
   
   return dtcgPayload;
