@@ -540,6 +540,9 @@
         } else if (msg.type === 'cssCodePreview') {
           // console.log("Received cssCodePreview:", msg.payload); // Removed logging
           updateCSSView(msg.payload);
+        } else if (msg.type === 'tailwindCodePreview') {
+          // console.log("Received tailwindCodePreview:", msg.payload); // Removed logging
+          updateTailwindView(msg.payload);
         } else if (msg.type === 'error') {
           console.error("Error from plugin:", msg.message);
           // Display error in UI if needed
@@ -737,6 +740,18 @@
           } 
         }, '*');
       }
+      
+      // If Tailwind tab is active, also update the Tailwind view
+      const tailwindTab = document.querySelector('[data-target="tailwind-code-content"]');
+      if (tailwindTab && tailwindTab.classList.contains('active')) {
+        // Request Tailwind code generation with the filtered payload
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'request-tailwind-code',
+            payload: filteredDtcg
+          } 
+        }, '*');
+      }
     }
     
     // Generate filtered DTCG payload based on checkbox selections
@@ -915,6 +930,11 @@
           if (targetId === 'css-code-content') {
             handleCSSTabActivation();
           }
+          
+          // Handle Tailwind tab specific logic
+          if (targetId === 'tailwind-code-content') {
+            handleTailwindTabActivation();
+          }
         }, { passive: true });
 
         button.addEventListener('click', () => {
@@ -940,6 +960,11 @@
           // Handle CSS tab specific logic
           if (targetId === 'css-code-content') {
             handleCSSTabActivation();
+          }
+          
+          // Handle Tailwind tab specific logic
+          if (targetId === 'tailwind-code-content') {
+            handleTailwindTabActivation();
           }
         });
       });
@@ -971,6 +996,20 @@
       parent.postMessage({ 
         pluginMessage: { 
           type: 'request-css-code',
+          payload: filteredDtcg
+        } 
+      }, '*');
+    }
+    
+    // Handle Tailwind tab activation
+    function handleTailwindTabActivation() {
+      // Generate the filtered DTCG payload based on current selections
+      const filteredDtcg = generateFilteredDtcgPayload();
+      
+      // Request Tailwind code generation from the plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-tailwind-code',
           payload: filteredDtcg
         } 
       }, '*');
@@ -1055,6 +1094,21 @@
         } else {
           // Show placeholder message
           cssCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+        }
+      }
+    }
+    
+    // Update the Tailwind view with the current payload
+    function updateTailwindView(payload) {
+      const tailwindCodeContent = document.getElementById('tailwind-code-content');
+      
+      if (tailwindCodeContent) {
+        if (payload && payload.code && payload.code.trim() !== '') {
+          // Simply show the Tailwind code directly, like JS and CSS do
+          tailwindCodeContent.innerHTML = `<pre class="json-viewer">${payload.code}</pre>`;
+        } else {
+          // Show placeholder message
+          tailwindCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
         }
       }
     }

@@ -354,6 +354,31 @@ figma.ui.onmessage = msg => {
       });
     }
   }
+  
+  // Handle request to generate Tailwind code
+  if (msg.type === 'request-tailwind-code') {
+    try {
+      const payloadToUse = msg.payload || latestDtcgPayload;
+      if (payloadToUse) {
+        const tailwindData = generateTailwindCodeFromPayload(payloadToUse);
+        figma.ui.postMessage({
+          type: 'tailwindCodePreview',
+          payload: tailwindData
+        });
+      } else {
+        figma.ui.postMessage({
+          type: 'error',
+          message: 'No DTCG payload available. Please generate variables first.'
+        });
+      }
+    } catch (error) {
+      console.error("Error generating Tailwind code:", error);
+      figma.ui.postMessage({
+        type: 'error',
+        message: `Failed to generate Tailwind code: ${error.message}`
+      });
+    }
+  }
 };
 
 // Send an initial plugin-info message when the plugin starts
@@ -1097,5 +1122,148 @@ function resolveCSSAlias(aliasString, currentCollectionName, currentModeName) {
   } else {
     // Fallback - use the segments as-is
     return `var(--${finalSegments.join('-')})`;
+  }
+}
+
+/**
+ * Generates Tailwind configuration code from a DTCG payload
+ * @param {Object} dtcgPayload - The DTCG payload object
+ * @returns {Object} - Object with code and structure properties
+ */
+function generateTailwindCodeFromPayload(dtcgPayload) {
+  if (!dtcgPayload || typeof dtcgPayload !== 'object') {
+    return { code: '', structure: {} };
+  }
+  
+  // Initialize Tailwind config structure
+  const tailwindConfig = {
+    theme: {
+      extend: {}
+    }
+  };
+  
+  // Set to track processed collection-relative keys for deduplication
+  const processedCollectionRelativeKeys = new Set();
+  
+  // Map DTCG types to Tailwind theme sections
+  const dtcgTypeToTailwindSection = {
+    'color': 'colors',
+    'dimension': 'spacing',
+    'fontFamily': 'fontFamily',
+    'fontWeight': 'fontWeight',
+    'fontStyle': 'fontStyle',
+    'fontSize': 'fontSize',
+    'lineHeight': 'lineHeight',
+    'letterSpacing': 'letterSpacing',
+    'borderRadius': 'borderRadius',
+    'borderWidth': 'borderWidth',
+    'boxShadow': 'boxShadow',
+    'opacity': 'opacity'
+  };
+  
+  // Iterate through each collection in the DTCG payload
+  for (const collectionName in dtcgPayload) {
+    const collection = dtcgPayload[collectionName];
+    
+    if (!collection || typeof collection !== 'object') continue;
+    
+    const sanitizedCollectionName = sanitizeForDTCG(collectionName);
+    
+    // Iterate through each mode in the collection
+    for (const modeName in collection) {
+      const modeData = collection[modeName];
+      
+      if (!modeData || typeof modeData !== 'object') continue;
+      
+      // Process tokens within this mode
+      collectTailwindTokensRecursive(
+        modeData,
+        sanitizedCollectionName,
+        [],
+        tailwindConfig.theme.extend,
+        processedCollectionRelativeKeys,
+        dtcgTypeToTailwindSection
+      );
+    }
+  }
+  
+  // Generate the final code string
+  const finalTailwindString = JSON.stringify(tailwindConfig, null, 2);
+  
+  return {
+    code: finalTailwindString,
+    structure: dtcgPayload
+  };
+}
+
+/**
+ * Recursively processes tokens and builds the Tailwind configuration
+ * @param {Object} currentNode - The current object being processed within the mode
+ * @param {string} sanitizedCollectionName - The sanitized collection name
+ * @param {Array} currentRelativePathSegments - Path segments relative to the collection/mode
+ * @param {Object} extendObject - The tailwindConfig.theme.extend object
+ * @param {Set} processedKeys - Set for deduplication
+ * @param {Object} typeMap - DTCG type to Tailwind section mapping
+ */
+function collectTailwindTokensRecursive(currentNode, sanitizedCollectionName, currentRelativePathSegments, extendObject, processedKeys, typeMap) {
+  if (!currentNode || typeof currentNode !== 'object') {
+    return;
+  }
+  
+  for (const key in currentNode) {
+    const tokenData = currentNode[key];
+    const newRelativePathSegments = [...currentRelativePathSegments, sanitizeForDTCG(key)];
+    
+    // Check if this is a token (has $type and $value)
+    if (tokenData && typeof tokenData === 'object' && tokenData.$type && tokenData.$value !== undefined) {
+      // This is a token - process it for Tailwind
+      
+      // Create the relative key for this token (e.g., "type-1")
+      const tailwindRelativeKey = newRelativePathSegments.join('-');
+      
+      // Create unique key for deduplication (e.g., "enso_colors.type-1")
+      const uniqueKeyForDeduplication = `${sanitizedCollectionName}.${tailwindRelativeKey}`;
+      
+      // Skip if already processed (from another mode)
+      if (processedKeys.has(uniqueKeyForDeduplication)) {
+        continue;
+      }
+      
+      // Add to processed keys
+      processedKeys.add(uniqueKeyForDeduplication);
+      
+      // Create the Tailwind value (e.g., "var(--type-1)")
+      const tailwindValue = `var(--${tailwindRelativeKey})`;
+      
+      // Get the Tailwind section based on token type
+      const sectionName = typeMap[tokenData.$type];
+      if (!sectionName) {
+        continue; // Skip tokens with unmapped types
+      }
+      
+      // Ensure the section exists in extend object
+      if (!extendObject[sectionName]) {
+        extendObject[sectionName] = {};
+      }
+      
+      // Ensure the collection exists within the section
+      if (!extendObject[sectionName][sanitizedCollectionName]) {
+        extendObject[sectionName][sanitizedCollectionName] = {};
+      }
+      
+      // Add the token to the Tailwind config
+      extendObject[sectionName][sanitizedCollectionName][tailwindRelativeKey] = tailwindValue;
+      
+    } else if (tokenData && typeof tokenData === 'object') {
+      // This is a group - recurse deeper
+      collectTailwindTokensRecursive(
+        tokenData,
+        sanitizedCollectionName,
+        newRelativePathSegments,
+        extendObject,
+        processedKeys,
+        typeMap
+      );
+    }
   }
 }
