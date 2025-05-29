@@ -548,10 +548,21 @@
           // Display error in UI if needed
         } else if (msg.type === 'warning-potential-missing-source') {
           console.warn("Warning from plugin:", msg.payload.message);
+          console.warn("Warning details:", msg.payload.details);
+          
           const banner = document.getElementById('global-warning-banner');
           const messageEl = document.getElementById('global-warning-message');
           if (banner && messageEl) {
-            messageEl.textContent = "Some variable aliases couldn't be resolved due to missing libraries—please enable all required Figma libraries and restart the plugin.";
+            // Use the improved message from the plugin
+            let displayMessage = msg.payload.message;
+            
+            // Add additional context if details are available
+            if (msg.payload.details) {
+              const details = msg.payload.details;
+              displayMessage += ` (${details.localVariables} local, ${details.sharedVariables} shared variables loaded)`;
+            }
+            
+            messageEl.textContent = displayMessage;
             banner.style.display = 'block';
           }
         }

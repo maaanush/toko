@@ -52,6 +52,7 @@ function rgbToHsl(r, g, b) {
 
 // Create the main object to hold all fetched variable data
 let allFetchedVariablesPayload = {
+  local: [], // Array of local collections with their variables
   shared: [] // Array of shared library collections with their variables
 };
 
@@ -64,8 +65,138 @@ let variableKeyToIdMap = new Map();
 // Initialize a map to store local ID to library variable key mappings
 let variableIdToKeyMap = new Map();
 
+// Map to track Figma variable IDs to their canonical paths for alias resolution
+let variableIdToPathMap = new Map();
+
 // Set to track unresolved alias IDs that might be due to missing libraries or problematic local variables
 let unresolvedAliaseIdsSuspectedMissingSource = new Set();
+
+/**
+ * Debug function to help identify problematic variables
+ * @param {string} variableId - The variable ID to debug
+ */
+function debugVariableById(variableId) {
+  console.group(`Debugging variable ID: ${variableId}`);
+  
+  // Check if it's in our path map
+  const pathInfo = variableIdToPathMap && variableIdToPathMap.get ? variableIdToPathMap.get(variableId) : undefined;
+  console.log('Path info:', pathInfo);
+  
+  // Check if it's a library variable
+  const libraryKey = variableIdToKeyMap && variableIdToKeyMap.get ? variableIdToKeyMap.get(variableId) : undefined;
+  console.log('Library key:', libraryKey);
+  
+  // Check if it's in unresolved set
+  const isUnresolved = unresolvedAliaseIdsSuspectedMissingSource && unresolvedAliaseIdsSuspectedMissingSource.has ? unresolvedAliaseIdsSuspectedMissingSource.has(variableId) : false;
+  console.log('Is unresolved:', isUnresolved);
+  
+  // Try to fetch the variable directly from Figma
+  if (typeof figma !== 'undefined' && figma.variables) {
+    figma.variables.getVariableByIdAsync(variableId)
+      .then(variable => {
+        console.log('Direct Figma fetch result:', variable);
+      })
+      .catch(error => {
+        console.log('Direct Figma fetch error:', error.message);
+      });
+  }
+  
+  console.groupEnd();
+}
+
+// Make debug function available globally for console use
+if (typeof window !== 'undefined') {
+  window.debugVariableById = debugVariableById;
+} else if (typeof global !== 'undefined') {
+  global.debugVariableById = debugVariableById;
+}
+
+/**
+ * Resets all global state to ensure fresh data on each run
+ */
+function resetPluginState() {
+  // Reset the main payload
+  allFetchedVariablesPayload = {
+    local: [],
+    shared: []
+  };
+  
+  // Clear all tracking sets and maps
+  importedLibraryVariableIds.clear();
+  variableKeyToIdMap.clear();
+  variableIdToKeyMap.clear();
+  variableIdToPathMap.clear();
+  unresolvedAliaseIdsSuspectedMissingSource.clear();
+  
+  console.log('Plugin state reset successfully');
+}
+
+/**
+ * Fetches local variable collections from the current Figma file
+ */
+async function fetchLocalCollections() {
+  try {
+    const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
+    
+    console.log('Found local collections:', localCollections.length);
+    
+    for (const collection of localCollections) {
+      // Create the structure for this local collection
+      const localCollectionData = {
+        id: collection.id,
+        name: collection.name,
+        modes: collection.modes.map(mode => ({
+          modeId: mode.modeId,
+          name: mode.name
+        })),
+        defaultModeId: collection.defaultModeId,
+        variables: []
+      };
+      
+      // Get all variables in this collection
+      for (const variableId of collection.variableIds) {
+        try {
+          const variable = await figma.variables.getVariableByIdAsync(variableId);
+          
+          if (variable) {
+            localCollectionData.variables.push({
+              id: variable.id,
+              name: variable.name,
+              description: variable.description,
+              resolvedType: variable.resolvedType,
+              valuesByMode: variable.valuesByMode,
+              scopes: variable.scopes,
+              codeSyntax: variable.codeSyntax,
+              remote: false // Mark as local
+            });
+          }
+        } catch (variableError) {
+          console.warn(`Failed to fetch local variable ${variableId}:`, variableError);
+        }
+      }
+      
+      // Add this collection to the local array
+      allFetchedVariablesPayload.local.push(localCollectionData);
+    }
+    
+    console.log('Successfully fetched local collections:', allFetchedVariablesPayload.local.length);
+    
+  } catch (error) {
+    console.error('Error fetching local collections:', error);
+    
+    // Add error to payload
+    if (!allFetchedVariablesPayload.errorLog) {
+      allFetchedVariablesPayload.errorLog = {};
+    }
+    
+    allFetchedVariablesPayload.errorLog.localCollectionError = {
+      phase: 'fetchLocalCollections',
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    };
+  }
+}
 
 /**
  * Fetches available library variable collections from team libraries
@@ -147,12 +278,9 @@ async function fetchSharedCollections() {
                   
                   // Mark that we've fetched this collection's mode info
                   hasCollectionModesInfo = true;
-                  
-                  console.log(`Successfully fetched modes for collection "${libraryCollection.name}":`, 
-                    sharedCollectionData.modes.map(m => `${m.name} (${m.modeId})`).join(', '));
                 }
               } catch (modesError) {
-                console.error(`Error fetching modes for collection "${libraryCollection.name}": ${modesError.message}`);
+                // ... existing code ...
               }
             }
             
@@ -222,9 +350,6 @@ async function fetchSharedCollections() {
             errorLog.importErrors.push(errorInfo);
           }
         }
-        
-        // Log summary of imports for this collection
-        console.log(`Successfully imported ${importedCount} variables from collection "${libraryCollection.name}"`);
       } catch (variableError) {
         // Log and store error information
         const errorInfo = {
@@ -263,7 +388,6 @@ async function fetchSharedCollections() {
 // Message handler for UI events
 figma.ui.onmessage = msg => {
   // Simple message handling - log events but don't take complex actions yet
-  console.log("Message from UI:", msg.type);
   
   // Example of responding to a specific message type
   if (msg.type === 'request-info') {
@@ -288,7 +412,6 @@ figma.ui.onmessage = msg => {
           payload: dtcgPayload
         });
       } catch (error) {
-        console.error("Error converting to DTCG format:", error);
         // Send error message to UI
         figma.ui.postMessage({
           type: 'error',
@@ -296,7 +419,6 @@ figma.ui.onmessage = msg => {
         });
       }
     }).catch(error => {
-      console.error("Error fetching variables:", error);
       // Send error message to UI
       figma.ui.postMessage({
         type: 'error',
@@ -322,7 +444,6 @@ figma.ui.onmessage = msg => {
         });
       }
     } catch (error) {
-      console.error("Error generating JS code:", error);
       figma.ui.postMessage({
         type: 'error',
         message: `Failed to generate JS code: ${error.message}`
@@ -347,7 +468,6 @@ figma.ui.onmessage = msg => {
         });
       }
     } catch (error) {
-      console.error("Error generating CSS code:", error);
       figma.ui.postMessage({
         type: 'error',
         message: `Failed to generate CSS code: ${error.message}`
@@ -372,7 +492,6 @@ figma.ui.onmessage = msg => {
         });
       }
     } catch (error) {
-      console.error("Error generating Tailwind code:", error);
       figma.ui.postMessage({
         type: 'error',
         message: `Failed to generate Tailwind code: ${error.message}`
@@ -403,14 +522,12 @@ fetchAndLogAllVariables().then(data => {
       payload: simplifiedPayload
     });
   } catch (error) {
-    console.error("Error creating simplified DTCG payload on initial load:", error);
     figma.ui.postMessage({
       type: 'error',
       message: `Failed to process variables on load: ${error.message}`
     });
   }
 }).catch(error => {
-  console.error("Error fetching variables on initial load:", error);
   figma.ui.postMessage({
     type: 'error',
     message: `Failed to fetch variables on load: ${error.message}`
@@ -421,18 +538,19 @@ fetchAndLogAllVariables().then(data => {
 function createSimplifiedDTCGPayload(figmaData) {
   const dtcgPayload = {};
   
-  // Map to track Figma variable IDs to their canonical paths for alias resolution
-  const variableIdToPathMap = new Map();
-  // Clear the set at the beginning of each payload creation
+  // Clear the maps at the beginning of each payload creation
+  variableIdToPathMap.clear();
   unresolvedAliaseIdsSuspectedMissingSource.clear();
   
   // First pass: collect all variable IDs and their paths
   // Process local variables
   if (figmaData.local) {
+    console.log('Processing local variables for path mapping...');
     figmaData.local.forEach(collection => {
       if (!collection || !collection.name || !collection.variables) return;
       
       const collectionKey = sanitizeForDTCG(collection.name);
+      console.log(`Processing collection: ${collection.name} (${collectionKey})`);
       
       collection.variables.forEach(variable => {
         if (!variable || !variable.name || !variable.id) return;
@@ -445,16 +563,20 @@ function createSimplifiedDTCGPayload(figmaData) {
           collectionKey,
           path: variablePathSegments
         });
+        
+        console.log(`Stored local variable: ${variable.name} (ID: ${variable.id}) -> ${collectionKey}.${variablePathSegments.join('.')}`);
       });
     });
   }
   
   // Process shared variables
   if (figmaData.shared && figmaData.shared.length > 0) {
+    console.log('Processing shared variables for path mapping...');
     figmaData.shared.forEach(sharedCollection => {
       if (!sharedCollection || !sharedCollection.name || !sharedCollection.variables) return;
       
       const collectionKey = sanitizeForDTCG(sharedCollection.name);
+      console.log(`Processing shared collection: ${sharedCollection.name} (${collectionKey})`);
       
       sharedCollection.variables.forEach(variable => {
         if (!variable || !variable.name || !variable.id) return;
@@ -467,6 +589,8 @@ function createSimplifiedDTCGPayload(figmaData) {
           collectionKey,
           path: variablePathSegments
         });
+        
+        console.log(`Stored shared variable: ${variable.name} (ID: ${variable.id}) -> ${collectionKey}.${variablePathSegments.join('.')}`);
       });
     });
   }
@@ -475,16 +599,33 @@ function createSimplifiedDTCGPayload(figmaData) {
   function resolveVariableAlias(aliasId) {
     const info = variableIdToPathMap.get(aliasId);
     if (!info) { // Alias is unresolved
-      // If the plugin has no record of importing a library variable that resulted in this local ID,
-      // it's a strong candidate for a missing library or a problematic local variable.
-      if (!variableIdToKeyMap.has(aliasId)) {
+      // Log the unresolved alias for debugging
+      console.warn(`Unresolved alias ID: ${aliasId}`);
+      console.warn(`Available variable IDs in map:`, Array.from(variableIdToPathMap.keys()));
+      console.warn(`Total variables in map: ${variableIdToPathMap.size}`);
+      
+      // Check if this is a library variable that failed to import
+      const isLibraryVariable = variableIdToKeyMap.has(aliasId);
+      
+      // Only add to suspected missing sources if:
+      // 1. It's not a known library variable (not in our import mapping)
+      // 2. We have some variables loaded (to avoid false positives on empty files)
+      const hasAnyVariables = variableIdToPathMap.size > 0;
+      
+      if (!isLibraryVariable && hasAnyVariables) {
         unresolvedAliaseIdsSuspectedMissingSource.add(aliasId);
+        console.warn(`Added ${aliasId} to suspected missing sources. Total unresolved: ${unresolvedAliaseIdsSuspectedMissingSource.size}`);
+      } else if (isLibraryVariable) {
+        console.warn(`Alias ${aliasId} is a known library variable but couldn't be resolved - possible import issue`);
       }
+      
       return `{${aliasId}}`; // Fallback if not found
     }
     
     // Construct a path reference like {collectionName.segment1.segment2}
-    return `{${[info.collectionKey, ...info.path].join('.')}}`;
+    const resolvedPath = `{${[info.collectionKey, ...info.path].join('.')}}`;
+    console.log(`Resolved alias ${aliasId} to path: ${resolvedPath}`);
+    return resolvedPath;
   }
   
   // Second pass: build the actual payload
@@ -559,14 +700,27 @@ function createSimplifiedDTCGPayload(figmaData) {
           // Process the value - handle aliases specially
           let processedValue = value;
           if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS' && value.id) {
+            console.log(`Processing alias in ${variable.name}: ${value.id}`);
             // Convert alias to a proper reference string
             processedValue = resolveVariableAlias(value.id);
+            console.log(`Alias resolved to: ${processedValue}`);
           }
-          
-          // Add the variable value to the appropriate level
+
+          // Determine the DTCG type first
+          const dtcgType = mapFigmaTypeToDTCG(variable.resolvedType, variable.scopes);
+          // This is a literal value - convert it using the existing function
+          let finalValue;
+          if (typeof processedValue === 'string' && processedValue.startsWith('{') && processedValue.endsWith('}')) {
+            // This is a resolved alias reference - use it directly without conversion
+            finalValue = processedValue;
+          } else {
+            // This is a literal value - convert it using the existing function
+            finalValue = convertFigmaValueToDTCG(processedValue, variable.resolvedType, dtcgType);
+          }
+
           currentObject[variableKey] = {
-            $type: mapFigmaTypeToDTCG(variable.resolvedType),
-            $value: convertFigmaValueToDTCG(processedValue, variable.resolvedType)
+            $type: mapFigmaTypeToDTCG(variable.resolvedType, variable.scopes),
+            $value: finalValue
           };
         });
       });
@@ -637,14 +791,27 @@ function createSimplifiedDTCGPayload(figmaData) {
             // Process the value - handle aliases specially
             let processedValue = value;
             if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS' && value.id) {
+              console.log(`Processing alias in ${variable.name}: ${value.id}`);
               // Convert alias to a proper reference string
               processedValue = resolveVariableAlias(value.id);
+              console.log(`Alias resolved to: ${processedValue}`);
             }
-            
-            // Add the variable value to the appropriate level
+
+            // Determine the DTCG type first
+            const dtcgType = mapFigmaTypeToDTCG(variable.resolvedType, variable.scopes);
+            // This is a literal value - convert it using the existing function
+            let finalValue;
+            if (typeof processedValue === 'string' && processedValue.startsWith('{') && processedValue.endsWith('}')) {
+              // This is a resolved alias reference - use it directly without conversion
+              finalValue = processedValue;
+            } else {
+              // This is a literal value - convert it using the existing function
+              finalValue = convertFigmaValueToDTCG(processedValue, variable.resolvedType, dtcgType);
+            }
+
             currentObject[variableKey] = {
-              $type: mapFigmaTypeToDTCG(variable.resolvedType),
-              $value: convertFigmaValueToDTCG(processedValue, variable.resolvedType)
+              $type: mapFigmaTypeToDTCG(variable.resolvedType, variable.scopes),
+              $value: finalValue
             };
           });
         });
@@ -661,14 +828,44 @@ function createSimplifiedDTCGPayload(figmaData) {
   
   // After processing all variables, check if there were any suspected missing sources
   if (unresolvedAliaseIdsSuspectedMissingSource.size > 0) {
-    figma.ui.postMessage({
-      type: 'warning-potential-missing-source',
-      payload: {
-        message: "Some variable aliases could not be resolved (e.g., appearing as {id}). This might be because they point to variables in Figma libraries that are not currently added to this file, or to local variables that no longer exist or are unnamed. Please check that all necessary libraries are linked to this Figma file and that all local variables are correctly defined.",
-        // Optional: provide the list of IDs for advanced users or debugging
-        // unresolvedIds: Array.from(unresolvedAliaseIdsSuspectedMissingSource)
-      }
+    // Gather statistics for better debugging
+    const totalLocalVariables = figmaData.local ? 
+      figmaData.local.reduce((sum, collection) => sum + ((collection.variables && collection.variables.length) || 0), 0) : 0;
+    const totalSharedVariables = figmaData.shared ? 
+      figmaData.shared.reduce((sum, collection) => sum + ((collection.variables && collection.variables.length) || 0), 0) : 0;
+    const totalResolvedVariables = variableIdToPathMap.size;
+    
+    console.warn('Variable resolution summary:', {
+      totalLocalVariables,
+      totalSharedVariables,
+      totalResolvedVariables,
+      unresolvedAliases: unresolvedAliaseIdsSuspectedMissingSource.size,
+      unresolvedIds: Array.from(unresolvedAliaseIdsSuspectedMissingSource)
     });
+    
+    // Only show warning if we have a significant number of unresolved aliases
+    // or if the ratio of unresolved to resolved is concerning
+    const unresolvedRatio = unresolvedAliaseIdsSuspectedMissingSource.size / Math.max(totalResolvedVariables, 1);
+    
+    if (unresolvedAliaseIdsSuspectedMissingSource.size >= 3 || unresolvedRatio > 0.1) {
+      figma.ui.postMessage({
+        type: 'warning-potential-missing-source',
+        payload: {
+          message: `Found ${unresolvedAliaseIdsSuspectedMissingSource.size} unresolved variable aliases out of ${totalResolvedVariables} total variables. This might indicate missing libraries or deleted variables. Check the browser console for specific variable IDs.`,
+          details: {
+            unresolvedCount: unresolvedAliaseIdsSuspectedMissingSource.size,
+            totalVariables: totalResolvedVariables,
+            localVariables: totalLocalVariables,
+            sharedVariables: totalSharedVariables
+          }
+        }
+      });
+    } else {
+      // Minor issues - just log to console
+      console.warn(`Found ${unresolvedAliaseIdsSuspectedMissingSource.size} minor unresolved aliases - likely not a significant issue.`);
+    }
+  } else {
+    console.log('All variable aliases resolved successfully!');
   }
   
   return dtcgPayload;
@@ -692,10 +889,11 @@ function sanitizeForDTCG(name) {
 /**
  * Maps Figma variable types to DTCG types
  * @param {string} figmaResolvedType - Figma variable type (e.g., COLOR, FLOAT)
+ * @param {Array} variableScopes - Array of Figma variable scopes
  * @returns {string} - DTCG type
  */
 function mapFigmaTypeToDTCG(figmaResolvedType, variableScopes = []) {
-  if (!figmaResolvedType) return 'string'; // Default for safety
+  if (!figmaResolvedType) return 'number'; // Default for safety
 
   // Handle COLOR type
   if (figmaResolvedType === 'COLOR') {
@@ -709,47 +907,37 @@ function mapFigmaTypeToDTCG(figmaResolvedType, variableScopes = []) {
 
   // Handle STRING type
   if (figmaResolvedType === 'STRING') {
-    if (variableScopes.includes('FONT_FAMILY')) {
-      return 'fontFamily';
-    }
-    // For string-based font weights like "Bold", "Regular"
-    if (variableScopes.includes('FONT_WEIGHT')) {
-      return 'fontWeight';
-    }
     return 'string';
   }
 
   // Handle FLOAT type (Figma's representation for numbers)
   if (figmaResolvedType === 'FLOAT') {
-    // For number-based font weights like 400, 700
-    if (variableScopes.includes('FONT_WEIGHT')) {
-      return 'fontWeight';
-    }
-
-    // Check for scopes that imply a dimension
+    // Define dimension-indicating scopes
     const dimensionScopes = [
-      'FONT_SIZE', 'WIDTH_HEIGHT', 'GAP', 'CORNER_RADIUS', 'BORDER_WIDTH',
-      'LINE_HEIGHT', 'LETTER_SPACING', 'SPACING',
-      'PADDING_TOP', 'PADDING_RIGHT', 'PADDING_BOTTOM', 'PADDING_LEFT',
-      'MARGIN_TOP', 'MARGIN_RIGHT', 'MARGIN_BOTTOM', 'MARGIN_LEFT',
-      'MIN_WIDTH', 'MAX_WIDTH', 'MIN_HEIGHT', 'MAX_HEIGHT'
+      'WIDTH_HEIGHT', 'GAP', 'CORNER_RADIUS', 'BORDER_WIDTH', 
+      'FONT_SIZE', 'LETTER_SPACING', 'MIN_WIDTH', 'MAX_WIDTH', 
+      'MIN_HEIGHT', 'MAX_HEIGHT', 'ITEM_SPACING', 'STROKE_WEIGHT'
     ];
-    if (dimensionScopes.some(scope => variableScopes.includes(scope))) {
+    
+    // Check if any scope indicates this is a dimension
+    if (variableScopes && variableScopes.some(scope => dimensionScopes.includes(scope))) {
       return 'dimension';
     }
     
-    // Default for FLOAT if not a fontWeight or dimension
     return 'number';
   }
 
   // Fallback for any other unknown figmaResolvedType
-  return 'string';
+  return 'number';
 }
 
 /**
  * Converts a Figma value to DTCG format
+ * @param {*} value - The value to convert
+ * @param {string} figmaType - Figma variable type
+ * @param {string} dtcgType - DTCG type (optional)
  */
-function convertFigmaValueToDTCG(value, figmaType) {
+function convertFigmaValueToDTCG(value, figmaType, dtcgType) {
   // Handle null values
   if (value === null || value === undefined) {
     return null;
@@ -761,6 +949,12 @@ function convertFigmaValueToDTCG(value, figmaType) {
     // Ideally, this would be converted to a proper path, but for now
     // we'll use a simple reference format with the variable ID
     return `{${value.id}}`;
+  }
+  
+  // Handle DTCG type specific conversions first
+  if (dtcgType === 'dimension') {
+    const num = parseFloat(value);
+    return isNaN(num) ? '0px' : roundToMaxThreeDecimals(num) + 'px';
   }
   
   // Handle different types of Figma values
@@ -810,17 +1004,32 @@ function convertFigmaValueToDTCG(value, figmaType) {
  */
 async function fetchAndLogAllVariables() {
   try {
-    // Fetch shared (team library) variables - this is the only source of variables now
+    // Reset all state to ensure fresh data
+    resetPluginState();
+    
+    console.log('Starting variable fetch process...');
+    
+    // Fetch local variables first
+    console.log('Fetching local variables...');
+    await fetchLocalCollections();
+    
+    // Fetch shared (team library) variables
+    console.log('Fetching shared variables...');
     await fetchSharedCollections();
     
+    // Log summary of what was fetched
+    const localCount = allFetchedVariablesPayload.local.reduce((sum, collection) => sum + ((collection.variables && collection.variables.length) || 0), 0);
+    const sharedCount = allFetchedVariablesPayload.shared.reduce((sum, collection) => sum + ((collection.variables && collection.variables.length) || 0), 0);
+    console.log(`Fetch complete: ${localCount} local variables, ${sharedCount} shared variables`);
+    
+    // Log the final fetched payload before DTCG conversion
+    console.log('Final fetched variables payload:', allFetchedVariablesPayload);
+    
     // Convert fetched variables to DTCG format
-    console.log('--- Converting to DTCG Format ---');
+    console.log('Converting to DTCG format...');
     const simplifiedPayload = createSimplifiedDTCGPayload(allFetchedVariablesPayload);
     
-    // Log the simplified payload
-    console.log('--- DTCG Payload ---');
-    // console.log(JSON.stringify(simplifiedPayload, null, 2));
-    console.log('--- DTCG Conversion Complete ---');
+    console.log('Variable processing completed successfully');
     
     // End of orchestration function
     return {
@@ -828,6 +1037,8 @@ async function fetchAndLogAllVariables() {
       dtcg: simplifiedPayload
     };
   } catch (error) {
+    console.error('Error in fetchAndLogAllVariables:', error);
+    
     // Add error to payload if it exists
     if (!allFetchedVariablesPayload.errorLog) {
       allFetchedVariablesPayload.errorLog = {};
@@ -1066,7 +1277,7 @@ function generateScopedCSSVariables(dataNode, currentRelativePath, currentCollec
         cssValue = resolveCSSAlias(value.$value, currentCollectionName, currentModeName);
       } else {
         // Direct value - convert using existing function
-        cssValue = convertFigmaValueToDTCG(value.$value, value.$type);
+        cssValue = convertFigmaValueToDTCG(value.$value, value.$type, value.$type);
         // For CSS, ensure string values are quoted if needed
         if (typeof cssValue === 'string' && !cssValue.startsWith('#') && !cssValue.endsWith('px') && !cssValue.includes('var(')) {
           cssValue = `'${cssValue}'`;
