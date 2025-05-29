@@ -1122,12 +1122,26 @@ function generateJSCodeRecursive(currentValue, pathContext, indentLevel) {
   if (typeof currentValue === 'object') {
     // Check for special transformation node (DTCG token with $type and $value)
     if (currentValue.$type && currentValue.$value !== undefined) {
-      const valStr = currentValue.$value;
-      
-      // Handle path transformation logic for values like "{colors.slate.2}"
-      if (typeof valStr === 'string' && valStr.startsWith('{') && valStr.endsWith('}')) {
+      let effectiveValue = currentValue.$value;
+
+      // If the token type is 'dimension', attempt to parse its value (e.g., '10px') into a raw number.
+      if (currentValue.$type === 'dimension') {
+        if (typeof effectiveValue === 'string' && (effectiveValue.endsWith('px') || effectiveValue.endsWith('rem') || effectiveValue.endsWith('em') || effectiveValue.endsWith('%'))) {
+          const num = parseFloat(effectiveValue);
+          if (!isNaN(num)) {
+            effectiveValue = roundToMaxThreeDecimals(num); // effectiveValue is now a number, e.g., 10
+          }
+          // If parsing fails (e.g., malformed string), effectiveValue remains the original string
+          // and will be handled by the string literal logic below.
+        }
+        // If effectiveValue was already a number or an alias string like "{...}", it's unchanged.
+      }
+
+      // Handle path transformation logic for ALIASES (e.g., "{colors.slate.2}")
+      // This uses the potentially modified effectiveValue.
+      if (typeof effectiveValue === 'string' && effectiveValue.startsWith('{') && effectiveValue.endsWith('}')) {
         // Extract inner path: "{colors.slate.2}" -> "colors.slate.2"
-        const innerPath = valStr.slice(1, -1);
+        const innerPath = effectiveValue.slice(1, -1);
         const segments = innerPath.split('.');
         
         // Determine context for injection based on pathContext
@@ -1163,13 +1177,20 @@ function generateJSCodeRecursive(currentValue, pathContext, indentLevel) {
         return pathString;
       }
       
-      // Handle literal string values (like "#16120c")
-      if (typeof valStr === 'string') {
-        return `'${valStr.replace(/'/g, "\\'")}'`;
+      // If effectiveValue is a number (either originally, or from dimension parsing)
+      if (typeof effectiveValue === 'number') {
+        return String(effectiveValue); // Output as a numeric literal, e.g., "10"
       }
       
-      // Handle other value types
-      return generateJSCodeRecursive(valStr, pathContext, indentLevel);
+      // Handle literal string values (like "#16120c", or unparsed/non-dimension strings)
+      // This uses the potentially modified effectiveValue.
+      if (typeof effectiveValue === 'string') {
+        return `'${effectiveValue.replace(/'/g, "\'")}'`;
+      }
+      
+      // Handle other value types (e.g. boolean) that might be in $value
+      // This recursive call uses the potentially modified effectiveValue and will hit primitive handlers.
+      return generateJSCodeRecursive(effectiveValue, pathContext, indentLevel);
     }
     
     // Regular object handling

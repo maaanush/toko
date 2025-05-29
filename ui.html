@@ -411,9 +411,9 @@
                 <button class="tab-button output-tab-button" data-target="tailwind-code-content">Tailwind</button>
               </div>
               <div class="action-button-group"> <!-- For Download and Copy buttons -->
+                <button class="tab-button" id="export-github-btn">Export to Github</button>
                 <button class="tab-button" id="download-code-btn">Download code</button>
                 <button class="tab-button" id="copy-code-btn">Copy to clipboard</button>
-                <button class="tab-button" id="export-github-btn">Export to Github</button>
               </div>
             </div>
 
@@ -1185,7 +1185,7 @@
             // Provide user feedback only if copy actually succeeded
             if (copySuccess) {
               const originalText = copyBtn.textContent;
-              copyBtn.textContent = 'Copied!';
+              copyBtn.textContent = 'Copied';
               setTimeout(() => {
                 copyBtn.textContent = originalText;
               }, 1000);
