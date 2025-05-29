@@ -413,6 +413,7 @@
               <div class="action-button-group"> <!-- For Download and Copy buttons -->
                 <button class="tab-button" id="download-code-btn">Download code</button>
                 <button class="tab-button" id="copy-code-btn">Copy to clipboard</button>
+                <button class="tab-button" id="export-github-btn">Export to Github</button>
               </div>
             </div>
 
@@ -522,6 +523,9 @@
       
       // Setup the output area tabs
       setupOutputAreaTabs();
+
+      // Setup download and copy button functionality
+      setupActionButtons();
 
       // Simplified message handler - properly handle real data and display it
       window.onmessage = async (event) => {
@@ -1122,6 +1126,150 @@
           tailwindCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
         }
       }
+    }
+
+    // Setup download and copy button functionality
+    function setupActionButtons() {
+      const downloadBtn = document.getElementById('download-code-btn');
+      const copyBtn = document.getElementById('copy-code-btn');
+      const exportBtn = document.getElementById('export-github-btn');
+
+      if (downloadBtn) {
+        downloadBtn.addEventListener('click', () => {
+          const data = getActiveCodeTabData();
+          if (data) {
+            // Create temporary anchor for download
+            const blob = new Blob([data.content], { type: data.mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = data.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }
+        });
+      }
+
+      if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+          const data = getActiveCodeTabData();
+          if (data) {
+            let copySuccess = false;
+            
+            try {
+              // Primary method: Use legacy execCommand (more reliable in plugin contexts)
+              const textarea = document.createElement('textarea');
+              textarea.value = data.content;
+              textarea.style.position = 'fixed';
+              textarea.style.left = '-999999px';
+              textarea.style.top = '-999999px';
+              document.body.appendChild(textarea);
+              textarea.focus();
+              textarea.select();
+              
+              copySuccess = document.execCommand('copy');
+              document.body.removeChild(textarea);
+              
+              // Fallback method: Modern Clipboard API
+              if (!copySuccess && navigator.clipboard) {
+                await navigator.clipboard.writeText(data.content);
+                copySuccess = true;
+              }
+            } catch (error) {
+              console.error('Failed to copy to clipboard:', error);
+              copySuccess = false;
+            }
+            
+            // Provide user feedback only if copy actually succeeded
+            if (copySuccess) {
+              const originalText = copyBtn.textContent;
+              copyBtn.textContent = 'Copied!';
+              setTimeout(() => {
+                copyBtn.textContent = originalText;
+              }, 1000);
+            } else {
+              // Show failure feedback
+              const originalText = copyBtn.textContent;
+              copyBtn.textContent = 'Copy failed';
+              setTimeout(() => {
+                copyBtn.textContent = originalText;
+              }, 1000);
+            }
+          }
+        });
+      }
+
+      if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+          // Handle export button click
+          console.log('Export to Github button clicked');
+        });
+      }
+    }
+
+    // Helper function to get active code tab data
+    function getActiveCodeTabData() {
+      const activeTabButton = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
+      if (!activeTabButton) return null;
+
+      const targetId = activeTabButton.getAttribute('data-target');
+      const contentPane = document.getElementById(targetId);
+      if (!contentPane) return null;
+
+      let content = '';
+      let type = '';
+      let filename = '';
+      let mimeType = '';
+
+      switch (targetId) {
+        case 'json-code-content':
+          const jsonViewer = contentPane.querySelector('.json-viewer');
+          content = jsonViewer ? jsonViewer.textContent : '';
+          type = 'json';
+          filename = 'variables.json';
+          mimeType = 'application/json';
+          break;
+        case 'js-code-content':
+          // More robust JS content retrieval
+          // First, try to find the "Generated JavaScript Code" section (two-section structure)
+          const generatedCodeHeaders = Array.from(contentPane.querySelectorAll('h4'));
+          const generatedCodeHeader = generatedCodeHeaders.find(h => h.textContent === 'Generated JavaScript Code');
+          
+          if (generatedCodeHeader && generatedCodeHeader.nextElementSibling) {
+            const codeContainer = generatedCodeHeader.nextElementSibling;
+            const codeViewer = codeContainer.querySelector('.json-viewer');
+            content = codeViewer ? codeViewer.textContent : '';
+          } else {
+            // Fallback: try to get content from a single pre element (legacy case)
+            const singleJsViewer = contentPane.querySelector('.json-viewer');
+            content = singleJsViewer ? singleJsViewer.textContent : '';
+          }
+          
+          type = 'js';
+          filename = 'variables.js';
+          mimeType = 'application/javascript';
+          break;
+        case 'css-code-content':
+          const cssViewer = contentPane.querySelector('.json-viewer');
+          content = cssViewer ? cssViewer.textContent : '';
+          type = 'css';
+          filename = 'variables.css';
+          mimeType = 'text/css';
+          break;
+        case 'tailwind-code-content':
+          const tailwindViewer = contentPane.querySelector('.json-viewer');
+          content = tailwindViewer ? tailwindViewer.textContent : '';
+          type = 'tailwind';
+          filename = 'tailwind.config.js';
+          mimeType = 'application/javascript';
+          break;
+        default:
+          return null;
+      }
+
+      return (content && content.trim() !== '') ? { content, type, filename, mimeType } : null;
     }
   </script>
 </body>
