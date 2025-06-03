@@ -418,9 +418,10 @@ figma.ui.onmessage = msg => {
   
   // Handle request to generate DTCG payload
   if (msg.type === 'generate-dtcg') {
-    fetchAndLogAllVariables().then(data => {
+    (async () => {
       try {
-        const dtcgPayload = createSimplifiedDTCGPayload(data.raw || data);
+        const data = await fetchAndLogAllVariables();
+        const dtcgPayload = await createSimplifiedDTCGPayload(data.raw || data);
         // Store the payload for JS code generation
         latestDtcgPayload = dtcgPayload;
         figma.ui.postMessage({
@@ -431,16 +432,10 @@ figma.ui.onmessage = msg => {
         // Send error message to UI
         figma.ui.postMessage({
           type: 'error',
-          message: `Failed to convert variables: ${error.message}`
+          message: `Failed to fetch or convert variables: ${error.message}`
         });
       }
-    }).catch(error => {
-      // Send error message to UI
-      figma.ui.postMessage({
-        type: 'error',
-        message: `Failed to fetch variables: ${error.message}`
-      });
-    });
+    })();
   }
   
   // Handle request to generate JS code
@@ -525,10 +520,11 @@ figma.ui.postMessage({
 });
 
 // Automatically fetch and send data when the plugin UI loads
-fetchAndLogAllVariables().then(data => {
+(async () => {
   try {
+    const data = await fetchAndLogAllVariables();
     // Use createSimplifiedDTCGPayload with the raw data part of the fetched result
-    const simplifiedPayload = createSimplifiedDTCGPayload(data.raw || data); // data.raw for compatibility, or data if raw is not present
+    const simplifiedPayload = await createSimplifiedDTCGPayload(data.raw || data); // data.raw for compatibility, or data if raw is not present
     
     // Store the payload for JS code generation
     latestDtcgPayload = simplifiedPayload;
@@ -540,18 +536,13 @@ fetchAndLogAllVariables().then(data => {
   } catch (error) {
     figma.ui.postMessage({
       type: 'error',
-      message: `Failed to process variables on load: ${error.message}`
+      message: `Failed to fetch or process variables on load: ${error.message}`
     });
   }
-}).catch(error => {
-  figma.ui.postMessage({
-    type: 'error',
-    message: `Failed to fetch variables on load: ${error.message}`
-  });
-});
+})();
 
 // Function to create a simplified DTCG-compatible payload from Figma variables data
-function createSimplifiedDTCGPayload(figmaData) {
+async function createSimplifiedDTCGPayload(figmaData) {
   const dtcgPayload = {};
   
   // Clear the maps at the beginning of each payload creation
@@ -625,7 +616,10 @@ function createSimplifiedDTCGPayload(figmaData) {
   if (figmaData.shared && figmaData.shared.length > 0) {
     console.log('Processing shared variables for path mapping...');
     figmaData.shared.forEach(sharedCollection => {
-      if (!sharedCollection || !sharedCollection.name || !sharedCollection.variables) return;
+      if (!sharedCollection || !sharedCollection.name || !sharedCollection.variables) {
+        console.warn('Skipping a shared collection due to missing name or variables array:', sharedCollection);
+        return;
+      }
       
       const sCollectionName = sanitizeForDTCG(sharedCollection.name);
       const sLibraryName = sanitizeForDTCG(sharedCollection.libraryName || 'unnamed-library');
@@ -633,23 +627,33 @@ function createSimplifiedDTCGPayload(figmaData) {
       
       // Skip if already processed (duplicate)
       if (processedCollectionSignatures.has(collectionSignature)) {
+        console.log(`Path mapping: Skipping shared collection '${sharedCollection.name}' from library '${sharedCollection.libraryName}' as it (or its local equivalent) has already been processed for path mapping.`);
         return;
       }
+      processedCollectionSignatures.add(collectionSignature);
       
       const payloadCollectionKey = getFinalCollectionKey(sharedCollection.name, sharedCollection.libraryName);
-      console.log(`Processing shared collection: ${sharedCollection.name} (${payloadCollectionKey})`);
+      console.log(`Path mapping: Processing shared collection: ${sharedCollection.name} (Library: ${sharedCollection.libraryName}, Final Key: ${payloadCollectionKey})`);
       
       sharedCollection.variables.forEach(variable => {
-        if (!variable || !variable.name || !variable.id) return;
-        
-        // Split variable name by slashes to create hierarchical structure
-        const variablePathSegments = variable.name.split('/').map(segment => sanitizeForDTCG(segment));
-        
-        // Store path for this variable ID using final collection key
-        variableIdToPathMap.set(variable.id, {
-          collectionKey: payloadCollectionKey,
-          path: variablePathSegments
-        });
+        try {
+          if (!variable || !variable.id) {
+            console.warn(`Path mapping: Skipping shared variable in ${payloadCollectionKey} due to missing variable object or ID:`, variable);
+            return;
+          }
+          // Ensure variable.name is a string before splitting
+          const varName = typeof variable.name === 'string' ? variable.name : '';
+          const variablePathSegments = varName.split('/').map(segment => sanitizeForDTCG(segment));
+          
+          variableIdToPathMap.set(variable.id, {
+            collectionKey: payloadCollectionKey,
+            path: variablePathSegments
+          });
+          // Optional: Uncomment to confirm every successful mapping
+          // console.log(`Path mapping: Mapped shared variable ID ${variable.id} (Name: ${varName}) to path ${payloadCollectionKey}.${variablePathSegments.join('.')}`);
+        } catch (e) {
+          console.error(`Path mapping: ERROR processing shared variable ID ${variable && variable.id ? variable.id : 'UNKNOWN_ID'} (Name: ${variable && variable.name ? variable.name : 'UNKNOWN_NAME'}) in collection ${payloadCollectionKey}:`, e.message, e.stack);
+        }
       });
     });
   }
@@ -659,37 +663,73 @@ function createSimplifiedDTCGPayload(figmaData) {
   usedCollectionNames.clear();
   
   // Helper function to resolve variable aliases to paths
-  function resolveVariableAlias(aliasId) {
-    const info = variableIdToPathMap.get(aliasId);
-    if (!info) { // Alias is unresolved
-      // Check if this is a library variable that failed to import
-      const isLibraryVariable = variableIdToKeyMap.has(aliasId);
-      
-      // Only add to suspected missing sources if:
-      // 1. It's not a known library variable (not in our import mapping)
-      // 2. We have some variables loaded (to avoid false positives on empty files)
-      const hasAnyVariables = variableIdToPathMap.size > 0;
-      
-      if (!isLibraryVariable && hasAnyVariables) {
-        unresolvedAliaseIdsSuspectedMissingSource.add(aliasId);
-        console.warn(`Added ${aliasId} to suspected missing sources. Total unresolved: ${unresolvedAliaseIdsSuspectedMissingSource.size}`);
-      } else if (isLibraryVariable) {
-        console.warn(`Alias ${aliasId} is a known library variable but couldn't be resolved - possible import issue`);
+  async function resolveVariableAlias(aliasId) {
+    // Step 1: Try direct lookup in variableIdToPathMap
+    let info = variableIdToPathMap.get(aliasId);
+    
+    if (!info) {
+      // Step 2: Use getVariableByIdAsync to resolve library variable ID to local ID
+      try {
+        const resolvedVariable = await figma.variables.getVariableByIdAsync(aliasId);
+        if (resolvedVariable && resolvedVariable.id) {
+          info = variableIdToPathMap.get(resolvedVariable.id);
+          if (info) {
+            console.log(`Resolved library alias ${aliasId} to local ID ${resolvedVariable.id}`);
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to resolve alias ${aliasId}: ${error.message}`);
       }
-      
-      return `{${aliasId}}`; // Fallback if not found
     }
     
-    // Construct a path reference like {collectionName.segment1.segment2}
-    const resolvedPath = `{${[info.collectionKey, ...info.path].join('.')}}`;
-    return resolvedPath;
+    if (!info) {
+      // Add to unresolved if still not found
+      const hasAnyVariables = variableIdToPathMap.size > 0;
+      if (hasAnyVariables) {
+        unresolvedAliaseIdsSuspectedMissingSource.add(aliasId);
+      }
+      return `{${aliasId}}`;
+    }
+    
+    return `{${[info.collectionKey, ...info.path].join('.')}}`;
   }
-  
+
+  // Helper function to find a variable object by ID in the figmaData
+  function findVariableById(variableId, figmaData) {
+    // Search in local collections
+    if (figmaData.local) {
+      for (const collection of figmaData.local) {
+        if (collection.variables) {
+          for (const variable of collection.variables) {
+            if (variable.id === variableId) {
+              return variable;
+            }
+          }
+        }
+      }
+    }
+    
+    // Search in shared collections
+    if (figmaData.shared) {
+      for (const collection of figmaData.shared) {
+        if (collection.variables) {
+          for (const variable of collection.variables) {
+            if (variable.id === variableId) {
+              return variable;
+            }
+          }
+        }
+      }
+    }
+    
+    return null;
+  }
+
   // Second pass: build the actual payload
   // Process the local variables first
   if (figmaData.local) {
-    figmaData.local.forEach(collection => {
-      if (!collection || !collection.name) return;
+    for (const collection of figmaData.local) {
+      if (!collection || !collection.name) continue;
       
       const sCollectionName = sanitizeForDTCG(collection.name);
       const sLibraryName = sanitizeForDTCG(collection.libraryName || 'unnamed-library');
@@ -698,7 +738,7 @@ function createSimplifiedDTCGPayload(figmaData) {
       // De-duplication check
       if (processedCollectionSignatures.has(collectionSignature)) {
         console.log(`Skipping duplicate local collection '${collection.name}' from library '${collection.libraryName}'.`);
-        return;
+        continue;
       }
       
       // Add to processed signatures
@@ -726,14 +766,14 @@ function createSimplifiedDTCGPayload(figmaData) {
       
       // Now add variables to their respective modes
       if (collection.variables) {
-        collection.variables.forEach(variable => {
-          if (!variable || !variable.name || !variable.valuesByMode) return;
+        for (const variable of collection.variables) {
+          if (!variable || !variable.name || !variable.valuesByMode) continue;
           
           // Split variable name by slashes to create hierarchical structure
           const variablePathSegments = variable.name.split('/').map(segment => sanitizeForDTCG(segment));
           
           // For each mode this variable has values in
-          Object.entries(variable.valuesByMode).forEach(([modeId, value]) => {
+          for (const [modeId, value] of Object.entries(variable.valuesByMode)) {
             // Find the mode name for this modeId
             let modeName = 'mode-1'; // Default
             if (collection.modes) {
@@ -765,11 +805,20 @@ function createSimplifiedDTCGPayload(figmaData) {
             let processedValue = value;
             if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS' && value.id) {
               // Convert alias to a proper reference string
-              processedValue = resolveVariableAlias(value.id);
+              processedValue = await resolveVariableAlias(value.id);
             }
 
-            // Determine the DTCG type first
-            const dtcgType = mapFigmaTypeToDTCG(variable.resolvedType, variable.scopes);
+            // Determine the DTCG type - use target variable's properties for aliases
+            let typeSourceVariable = variable; // Default to current variable
+            if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS' && value.id) {
+              // Try to find the target variable to use its properties for type determination
+              const targetVariable = findVariableById(value.id, figmaData);
+              if (targetVariable) {
+                typeSourceVariable = targetVariable;
+              }
+            }
+            const dtcgType = mapFigmaTypeToDTCG(typeSourceVariable.resolvedType, typeSourceVariable.scopes);
+            
             // This is a literal value - convert it using the existing function
             let finalValue;
             if (typeof processedValue === 'string' && processedValue.startsWith('{') && processedValue.endsWith('}')) {
@@ -777,23 +826,23 @@ function createSimplifiedDTCGPayload(figmaData) {
               finalValue = processedValue;
             } else {
               // This is a literal value - convert it using the existing function
-              finalValue = convertFigmaValueToDTCG(processedValue, variable.resolvedType, dtcgType);
+              finalValue = convertFigmaValueToDTCG(processedValue, typeSourceVariable.resolvedType, dtcgType);
             }
 
             currentObject[variableKey] = {
-              $type: mapFigmaTypeToDTCG(variable.resolvedType, variable.scopes),
+              $type: dtcgType,
               $value: finalValue
             };
-          });
-        });
+          }
+        }
       }
-    });
+    }
   }
   
   // Process shared collections with de-duplication
   if (figmaData.shared && figmaData.shared.length > 0) {
-    figmaData.shared.forEach(sharedCollection => {
-      if (!sharedCollection || !sharedCollection.name) return;
+    for (const sharedCollection of figmaData.shared) {
+      if (!sharedCollection || !sharedCollection.name) continue;
       
       const sCollectionName = sanitizeForDTCG(sharedCollection.name);
       const sLibraryName = sanitizeForDTCG(sharedCollection.libraryName || 'unnamed-library');
@@ -802,7 +851,7 @@ function createSimplifiedDTCGPayload(figmaData) {
       // De-duplication check
       if (processedCollectionSignatures.has(collectionSignature)) {
         console.log(`Skipping shared collection '${sharedCollection.name}' from library '${sharedCollection.libraryName}' as it (or its local equivalent) has already been processed.`);
-        return;
+        continue;
       }
       
       // Add to processed signatures
@@ -828,14 +877,14 @@ function createSimplifiedDTCGPayload(figmaData) {
       
       // Add variables
       if (sharedCollection.variables && sharedCollection.variables.length > 0) {
-        sharedCollection.variables.forEach(variable => {
-          if (!variable || !variable.name || !variable.valuesByMode) return;
+        for (const variable of sharedCollection.variables) {
+          if (!variable || !variable.name || !variable.valuesByMode) continue;
           
           // Split variable name by slashes to create hierarchical structure
           const variablePathSegments = variable.name.split('/').map(segment => sanitizeForDTCG(segment));
           
           // For each mode this variable has values in
-          Object.entries(variable.valuesByMode).forEach(([modeId, value]) => {
+          for (const [modeId, value] of Object.entries(variable.valuesByMode)) {
             // Find the mode name for this modeId
             let modeName = 'mode-1'; // Default
             if (sharedCollection.modes) {
@@ -867,11 +916,20 @@ function createSimplifiedDTCGPayload(figmaData) {
             let processedValue = value;
             if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS' && value.id) {
               // Convert alias to a proper reference string
-              processedValue = resolveVariableAlias(value.id);
+              processedValue = await resolveVariableAlias(value.id);
             }
 
-            // Determine the DTCG type first
-            const dtcgType = mapFigmaTypeToDTCG(variable.resolvedType, variable.scopes);
+            // Determine the DTCG type - use target variable's properties for aliases
+            let typeSourceVariable = variable; // Default to current variable
+            if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS' && value.id) {
+              // Try to find the target variable to use its properties for type determination
+              const targetVariable = findVariableById(value.id, figmaData);
+              if (targetVariable) {
+                typeSourceVariable = targetVariable;
+              }
+            }
+            const dtcgType = mapFigmaTypeToDTCG(typeSourceVariable.resolvedType, typeSourceVariable.scopes);
+            
             // This is a literal value - convert it using the existing function
             let finalValue;
             if (typeof processedValue === 'string' && processedValue.startsWith('{') && processedValue.endsWith('}')) {
@@ -879,17 +937,17 @@ function createSimplifiedDTCGPayload(figmaData) {
               finalValue = processedValue;
             } else {
               // This is a literal value - convert it using the existing function
-              finalValue = convertFigmaValueToDTCG(processedValue, variable.resolvedType, dtcgType);
+              finalValue = convertFigmaValueToDTCG(processedValue, typeSourceVariable.resolvedType, dtcgType);
             }
 
             currentObject[variableKey] = {
-              $type: mapFigmaTypeToDTCG(variable.resolvedType, variable.scopes),
+              $type: dtcgType,
               $value: finalValue
             };
-          });
-        });
+          }
+        }
       }
-    });
+    }
   }
   
   // If we didn't find any variables, ensure we have at least one collection
@@ -1100,7 +1158,7 @@ async function fetchAndLogAllVariables() {
     
     // Convert fetched variables to DTCG format
     console.log('Converting to DTCG format...');
-    const simplifiedPayload = createSimplifiedDTCGPayload(allFetchedVariablesPayload);
+    const simplifiedPayload = await createSimplifiedDTCGPayload(allFetchedVariablesPayload);
     
     console.log('Variable processing completed successfully');
     
