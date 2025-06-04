@@ -71,6 +71,32 @@ let variableIdToPathMap = new Map();
 // Set to track unresolved alias IDs that might be due to missing libraries or problematic local variables
 let unresolvedAliaseIdsSuspectedMissingSource = new Set();
 
+// Scope categorization constants for the new consensus-based typing logic
+const PIXEL_DIMENSION_SCOPES = new Set([
+  'CORNER_RADIUS', 'WIDTH_HEIGHT', 'GAP', 'STROKE_WEIGHT', 
+  'FONT_SIZE', 'LINE_HEIGHT', 'LETTER_SPACING', 
+  'PARAGRAPH_SPACING', 'PARAGRAPH_INDENT',
+  'EFFECT_RADIUS', 'EFFECT_OFFSET_X', 'EFFECT_OFFSET_Y', 'EFFECT_SPREAD'
+]);
+
+const SPECIFIC_PIXEL_DIMENSION_TYPE_MAP = new Map([
+  ['FONT_SIZE', 'fontSize'],
+  ['LINE_HEIGHT', 'lineHeight'],
+  ['LETTER_SPACING', 'letterSpacing'],
+  ['CORNER_RADIUS', 'borderRadius'],
+  ['STROKE_WEIGHT', 'borderWidth']
+]);
+
+const UNITLESS_NUMERIC_SCOPES = new Set([
+  'FONT_WEIGHT',
+  'LAYER_OPACITY'
+]);
+
+const SPECIFIC_UNITLESS_NUMERIC_TYPE_MAP = new Map([
+  ['FONT_WEIGHT', 'fontWeight'],
+  ['LAYER_OPACITY', 'opacity']
+]);
+
 /**
  * Debug function to help identify problematic variables
  * @param {string} variableId - The variable ID to debug
@@ -542,7 +568,7 @@ figma.ui.postMessage({
 })();
 
 /**
- * Determines the DTCG type based on variable's resolved type and scopes
+ * Determines the DTCG type based on variable's resolved type and scopes using consensus logic
  * @param {Object} variable - The variable object with resolvedType and scopes
  * @returns {string} - DTCG type
  */
@@ -552,7 +578,6 @@ function resolveDTCGType(variable) {
   }
 
   const resolvedType = variable.resolvedType;
-  const scopes = variable.scopes || []; // Ensure scopes is an array
 
   // Handle specific types first
   if (resolvedType === 'COLOR') {
@@ -572,54 +597,70 @@ function resolveDTCGType(variable) {
   }
 
   if (resolvedType === 'FLOAT') {
-    // Order of checks matters: more specific scopes first.
-    if (scopes.includes('FONT_SIZE')) {
-      return 'fontSize';
-    }
-    if (scopes.includes('LINE_HEIGHT')) {
-      return 'lineHeight';
-    }
-    if (scopes.includes('LETTER_SPACING')) {
-      return 'letterSpacing';
+    const scopes = variable.scopes || [];
+    
+    // Initialize counters and tracking
+    let pixelDimensionScopeMatchCount = 0;
+    let unitlessNumericScopeMatchCount = 0;
+    const matchedPixelDimensionScopes = new Set();
+    const matchedUnitlessNumericScopes = new Set();
+
+    // Categorize scopes
+    for (const scope of scopes) {
+      if (PIXEL_DIMENSION_SCOPES.has(scope)) {
+        pixelDimensionScopeMatchCount++;
+        matchedPixelDimensionScopes.add(scope);
+      } else if (UNITLESS_NUMERIC_SCOPES.has(scope)) {
+        unitlessNumericScopeMatchCount++;
+        matchedUnitlessNumericScopes.add(scope);
+      }
     }
 
-    // Heuristic for fontWeight: check variable name if it's a FLOAT
-    // and not already matched by a more specific typography scope.
-    // Figma uses FLOAT for font weights, and they might not have a unique 'FONT_WEIGHT' scope.
+    // Decision logic based on scope categories
+    
+    // A. Purely Pixel-Dimensional Intent
+    if (pixelDimensionScopeMatchCount > 0 && unitlessNumericScopeMatchCount === 0) {
+      if (pixelDimensionScopeMatchCount === 1) {
+        const singleScope = matchedPixelDimensionScopes.values().next().value;
+        if (SPECIFIC_PIXEL_DIMENSION_TYPE_MAP.has(singleScope)) {
+          return SPECIFIC_PIXEL_DIMENSION_TYPE_MAP.get(singleScope);
+        }
+      }
+      // Multiple pixel-dimensional scopes, or single general one (like GAP)
+      return 'dimension';
+    }
+
+    // B. Purely Unitless-Numeric Intent
+    if (unitlessNumericScopeMatchCount > 0 && pixelDimensionScopeMatchCount === 0) {
+      if (unitlessNumericScopeMatchCount === 1) {
+        const singleScope = matchedUnitlessNumericScopes.values().next().value;
+        if (SPECIFIC_UNITLESS_NUMERIC_TYPE_MAP.has(singleScope)) {
+          return SPECIFIC_UNITLESS_NUMERIC_TYPE_MAP.get(singleScope);
+        }
+      }
+      // Multiple unitless scopes, or one not in the specific map
+      return 'number';
+    }
+
+    // C. Mixed Intent (Pixel-Dimensional AND Unitless-Numeric Scopes Present)
+    if (pixelDimensionScopeMatchCount > 0 && unitlessNumericScopeMatchCount > 0) {
+      return 'number'; // Default for mixed intent
+    }
+
+    // D. Fallback Logic (No categorized scopes matched)
+    
+    // Apply name-based fontWeight heuristic for FLOATs
     if (variable.name && (variable.name.toLowerCase().includes('fontweight') || variable.name.toLowerCase().includes('font-weight'))) {
-      // We can add a check here to ensure it's not, e.g., a 'spacing' variable that happens to have 'fontweight' in its name
-      // For now, this heuristic is often effective for typical naming conventions.
       return 'fontWeight';
     }
-    
-    // General dimensional scopes check for other FLOATs
-    const dimensionalScopes = [
-      'ALL_SCOPES', // Use with caution; can be too broad if not filtered
-      'CORNER_RADIUS', 
-      'WIDTH_HEIGHT',
-      'GAP',
-      'STROKE_WEIGHT',
-      // FONT_SIZE, LINE_HEIGHT, LETTER_SPACING are handled above
-      'PARAGRAPH_SPACING',
-      'PARAGRAPH_INDENT',
-      'EFFECT_RADIUS',
-      'EFFECT_OFFSET_X',
-      'EFFECT_OFFSET_Y',
-      'EFFECT_SPREAD'
-    ];
-    
-    // Check if any of the variable's scopes match general dimensional scopes
-    const hasDimensionalScope = scopes.some(scope => dimensionalScopes.includes(scope));
-    
-    if (hasDimensionalScope) {
-      // Could be mapped to 'dimension' if a generic 'dimension' type is needed later,
-      // or directly to 'number' if these should generally fall into 'spacing' in Tailwind.
-      // Given dtcgTypeToTailwindSection maps 'number' to 'spacing', this seems appropriate for now
-      // for non-specific dimensional floats.
-      return 'number'; // Let it fall into 'spacing' or be handled as a generic number
+
+    // Handle general scopes like ALL_SCOPES, TEXT_CONTENT
+    const generalScopes = ['ALL_SCOPES', 'TEXT_CONTENT'];
+    if (scopes.some(scope => generalScopes.includes(scope))) {
+      return 'number';
     }
-    
-    // Fallback for FLOATs that are not specifically dimensional (e.g., unitless numbers)
+
+    // Final fallback
     return 'number';
   }
   
@@ -683,11 +724,22 @@ function convertFigmaValueToDTCG(value, figmaType, dtcgType) {
       const num = parseFloat(value);
       const roundedNum = isNaN(num) ? 0 : roundToMaxThreeDecimals(num);
       
-      // If DTCG type is dimension, append px to the value
-      if (dtcgType === 'dimension') {
+      // Define types that require px units
+      const TYPES_REQUIRING_PX = new Set([
+        'dimension', 
+        'fontSize', 
+        'lineHeight', 
+        'letterSpacing', 
+        'borderRadius', 
+        'borderWidth'
+      ]);
+      
+      // Add px units for dimensional types
+      if (TYPES_REQUIRING_PX.has(dtcgType)) {
         return `${roundedNum}px`;
       }
       
+      // Return unitless for number, fontWeight, opacity, etc.
       return roundedNum;
       
     default:
@@ -1061,6 +1113,7 @@ function generateTailwindCodeFromPayload(dtcgPayload) {
   // Map DTCG types to Tailwind theme sections
   const dtcgTypeToTailwindSection = {
     'color': 'colors',
+    'dimension': 'spacing',
     'number': 'spacing',
     'fontFamily': 'fontFamily',
     'fontWeight': 'fontWeight',
