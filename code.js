@@ -552,34 +552,54 @@ function resolveDTCGType(variable) {
   }
 
   const resolvedType = variable.resolvedType;
-  
-  // Handle non-FLOAT types directly
+  const scopes = variable.scopes || []; // Ensure scopes is an array
+
+  // Handle specific types first
   if (resolvedType === 'COLOR') {
     return 'color';
   }
-  
+
   if (resolvedType === 'STRING') {
-    return 'string';
+    // Heuristic for fontFamily: check variable name if it's a string type
+    if (variable.name && (variable.name.toLowerCase().includes('fontfamily') || variable.name.toLowerCase().includes('font-family'))) {
+      return 'fontFamily';
+    }
+    return 'string'; // Default for other strings
   }
-  
+
   if (resolvedType === 'BOOLEAN') {
     return 'string'; // DTCG doesn't have native boolean
   }
-  
-  // Handle FLOAT type - check scopes for dimensional indicators
+
   if (resolvedType === 'FLOAT') {
-    const scopes = variable.scopes || [];
+    // Order of checks matters: more specific scopes first.
+    if (scopes.includes('FONT_SIZE')) {
+      return 'fontSize';
+    }
+    if (scopes.includes('LINE_HEIGHT')) {
+      return 'lineHeight';
+    }
+    if (scopes.includes('LETTER_SPACING')) {
+      return 'letterSpacing';
+    }
+
+    // Heuristic for fontWeight: check variable name if it's a FLOAT
+    // and not already matched by a more specific typography scope.
+    // Figma uses FLOAT for font weights, and they might not have a unique 'FONT_WEIGHT' scope.
+    if (variable.name && (variable.name.toLowerCase().includes('fontweight') || variable.name.toLowerCase().includes('font-weight'))) {
+      // We can add a check here to ensure it's not, e.g., a 'spacing' variable that happens to have 'fontweight' in its name
+      // For now, this heuristic is often effective for typical naming conventions.
+      return 'fontWeight';
+    }
     
-    // Define dimensional scopes that indicate this should be a dimension type
+    // General dimensional scopes check for other FLOATs
     const dimensionalScopes = [
-      'ALL_SCOPES',
+      'ALL_SCOPES', // Use with caution; can be too broad if not filtered
       'CORNER_RADIUS', 
       'WIDTH_HEIGHT',
       'GAP',
       'STROKE_WEIGHT',
-      'FONT_SIZE',
-      'LINE_HEIGHT',
-      'LETTER_SPACING',
+      // FONT_SIZE, LINE_HEIGHT, LETTER_SPACING are handled above
       'PARAGRAPH_SPACING',
       'PARAGRAPH_INDENT',
       'EFFECT_RADIUS',
@@ -588,14 +608,19 @@ function resolveDTCGType(variable) {
       'EFFECT_SPREAD'
     ];
     
-    // Check if any of the variable's scopes match dimensional scopes
+    // Check if any of the variable's scopes match general dimensional scopes
     const hasDimensionalScope = scopes.some(scope => dimensionalScopes.includes(scope));
     
     if (hasDimensionalScope) {
-      return 'dimension';
-    } else {
-      return 'number';
+      // Could be mapped to 'dimension' if a generic 'dimension' type is needed later,
+      // or directly to 'number' if these should generally fall into 'spacing' in Tailwind.
+      // Given dtcgTypeToTailwindSection maps 'number' to 'spacing', this seems appropriate for now
+      // for non-specific dimensional floats.
+      return 'number'; // Let it fall into 'spacing' or be handled as a generic number
     }
+    
+    // Fallback for FLOATs that are not specifically dimensional (e.g., unitless numbers)
+    return 'number';
   }
   
   // Fallback for any unknown types
