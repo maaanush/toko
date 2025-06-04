@@ -166,8 +166,8 @@ async function fetchLocalCollections() {
               name: variable.name,
               description: variable.description,
               resolvedType: variable.resolvedType,
-              valuesByMode: variable.valuesByMode,
               scopes: variable.scopes,
+              valuesByMode: variable.valuesByMode,
               codeSyntax: variable.codeSyntax,
               remote: false // Mark as local
             });
@@ -311,8 +311,8 @@ async function fetchSharedCollections() {
                 name: detailedVariable.name,
                 description: detailedVariable.description,
                 resolvedType: detailedVariable.resolvedType,
+                scopes: detailedVariable.scopes,         // Add scopes property
                 valuesByMode: detailedVariable.valuesByMode,
-                scopes: detailedVariable.scopes,
                 codeSyntax: detailedVariable.codeSyntax,
                 remote: true,                            // Mark as remote
                 libraryName: libraryCollection.libraryName
@@ -541,7 +541,626 @@ figma.ui.postMessage({
   }
 })();
 
-// Function to create a simplified DTCG-compatible payload from Figma variables data
+/**
+ * Determines the DTCG type based on variable's resolved type and scopes
+ * @param {Object} variable - The variable object with resolvedType and scopes
+ * @returns {string} - DTCG type
+ */
+function resolveDTCGType(variable) {
+  if (!variable || !variable.resolvedType) {
+    return 'number'; // Default fallback
+  }
+
+  const resolvedType = variable.resolvedType;
+  
+  // Handle non-FLOAT types directly
+  if (resolvedType === 'COLOR') {
+    return 'color';
+  }
+  
+  if (resolvedType === 'STRING') {
+    return 'string';
+  }
+  
+  if (resolvedType === 'BOOLEAN') {
+    return 'string'; // DTCG doesn't have native boolean
+  }
+  
+  // Handle FLOAT type - check scopes for dimensional indicators
+  if (resolvedType === 'FLOAT') {
+    const scopes = variable.scopes || [];
+    
+    // Define dimensional scopes that indicate this should be a dimension type
+    const dimensionalScopes = [
+      'ALL_SCOPES',
+      'CORNER_RADIUS', 
+      'WIDTH_HEIGHT',
+      'GAP',
+      'STROKE_WEIGHT',
+      'FONT_SIZE',
+      'LINE_HEIGHT',
+      'LETTER_SPACING',
+      'PARAGRAPH_SPACING',
+      'PARAGRAPH_INDENT',
+      'EFFECT_RADIUS',
+      'EFFECT_OFFSET_X',
+      'EFFECT_OFFSET_Y',
+      'EFFECT_SPREAD'
+    ];
+    
+    // Check if any of the variable's scopes match dimensional scopes
+    const hasDimensionalScope = scopes.some(scope => dimensionalScopes.includes(scope));
+    
+    if (hasDimensionalScope) {
+      return 'dimension';
+    } else {
+      return 'number';
+    }
+  }
+  
+  // Fallback for any unknown types
+  return 'number';
+}
+
+/**
+ * Converts a Figma value to DTCG format
+ * @param {*} value - The value to convert
+ * @param {string} figmaType - Figma variable type
+ * @param {string} dtcgType - DTCG type
+ */
+function convertFigmaValueToDTCG(value, figmaType, dtcgType) {
+  // Handle null values
+  if (value === null || value === undefined) {
+    return null;
+  }
+  
+  // Special handling for VARIABLE_ALIAS type
+  if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS') {
+    // For aliases, use a reference format {id}
+    // Ideally, this would be converted to a proper path, but for now
+    // we'll use a simple reference format with the variable ID
+    return `{${value.id}}`;
+  }
+  
+  // Handle different types of Figma values
+  switch (figmaType) {
+    case 'COLOR':
+      // If it's a color object with RGB components
+      if (value && typeof value === 'object' && value.r !== undefined) {
+        // Check if color has opacity (alpha < 1)
+        if (value.a !== undefined && value.a !== 1) {
+          // Use HSLA format for colors with opacity
+          const hsl = rgbToHsl(value.r, value.g, value.b);
+          const alpha = roundToMaxThreeDecimals(value.a);
+          return `hsla(${hsl.h}, ${hsl.s}%, ${hsl.l}%, ${alpha})`;
+        }
+        
+        // Use hex format for opaque colors
+        const r = Math.round(value.r * 255).toString(16).padStart(2, '0');
+        const g = Math.round(value.g * 255).toString(16).padStart(2, '0');
+        const b = Math.round(value.b * 255).toString(16).padStart(2, '0');
+        
+        return `#${r}${g}${b}`;
+      }
+      
+      // For color values in other formats (like hex strings or references)
+      return value;
+      
+    case 'BOOLEAN':
+      return !!value;
+      
+    case 'STRING':
+      return String(value);
+      
+    case 'FLOAT':
+    case 'NUMBER':
+      // Ensure the value is a number
+      const num = parseFloat(value);
+      const roundedNum = isNaN(num) ? 0 : roundToMaxThreeDecimals(num);
+      
+      // If DTCG type is dimension, append px to the value
+      if (dtcgType === 'dimension') {
+        return `${roundedNum}px`;
+      }
+      
+      return roundedNum;
+      
+    default:
+      // For any other types, return the value as-is
+      return value;
+  }
+}
+
+/**
+ * Main orchestration function to fetch and process all variables
+ */
+async function fetchAndLogAllVariables() {
+  try {
+    // Reset all state to ensure fresh data
+    resetPluginState();
+    
+    console.log('Starting variable fetch process...');
+    
+    // Fetch local variables first
+    console.log('Fetching local variables...');
+    await fetchLocalCollections();
+    
+    // Fetch shared (team library) variables
+    console.log('Fetching shared variables...');
+    await fetchSharedCollections();
+    
+    // Log summary of what was fetched
+    const localCount = allFetchedVariablesPayload.local.reduce((sum, collection) => sum + ((collection.variables && collection.variables.length) || 0), 0);
+    const sharedCount = allFetchedVariablesPayload.shared.reduce((sum, collection) => sum + ((collection.variables && collection.variables.length) || 0), 0);
+    console.log(`Fetch complete: ${localCount} local variables, ${sharedCount} shared variables`);
+    
+    // Log the final fetched payload before DTCG conversion
+    console.log('Final fetched variables payload:', allFetchedVariablesPayload);
+    
+    // Convert fetched variables to DTCG format
+    console.log('Converting to DTCG format...');
+    const simplifiedPayload = await createSimplifiedDTCGPayload(allFetchedVariablesPayload);
+    
+    console.log('Variable processing completed successfully');
+    
+    // End of orchestration function
+    return {
+      raw: allFetchedVariablesPayload,
+      dtcg: simplifiedPayload
+    };
+  } catch (error) {
+    console.error('Error in fetchAndLogAllVariables:', error);
+    
+    // Add error to payload if it exists
+    if (!allFetchedVariablesPayload.errorLog) {
+      allFetchedVariablesPayload.errorLog = {};
+    }
+    
+    allFetchedVariablesPayload.errorLog.orchestrationError = {
+      phase: 'fetchAndLogAllVariables',
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    };
+    
+    return allFetchedVariablesPayload;
+  }
+}
+
+// Store the latest DTCG payload for JS code generation
+let latestDtcgPayload = null;
+
+/**
+ * Generates JavaScript code from a DTCG payload
+ * @param {Object} dtcgPayload - The DTCG payload object
+ * @returns {string} - The generated JavaScript code
+ */
+function generateJSCodeFromPayload(dtcgPayload) {
+  if (!dtcgPayload || typeof dtcgPayload !== 'object') {
+    return '{}';
+  }
+  
+  // Phase 1: Generate JS with placeholders
+  const intermediateJsString = generateJSCodeRecursive(dtcgPayload, [], 0);
+  
+  // Phase 2: Replace placeholders with actual bracket notation
+  const finalJsString = intermediateJsString.replace(/LB/g, '["').replace(/RB/g, '"]');
+  
+  return finalJsString;
+}
+
+/**
+ * Recursively generates JavaScript code from a value
+ * @param {*} currentValue - The current value being processed
+ * @param {Array} pathContext - Array of keys representing the path to this value's parent
+ * @param {number} indentLevel - Current indentation level for pretty printing
+ * @returns {string} - The generated JavaScript code for this value
+ */
+function generateJSCodeRecursive(currentValue, pathContext, indentLevel) {
+  const indent = '  '.repeat(indentLevel);
+  const nextIndent = '  '.repeat(indentLevel + 1);
+  
+  // Handle null and undefined
+  if (currentValue === null || currentValue === undefined) {
+    return 'null';
+  }
+  
+  // Handle primitives
+  if (typeof currentValue === 'string') {
+    return `'${currentValue.replace(/'/g, "\\'")}'`;
+  }
+  
+  if (typeof currentValue === 'number' || typeof currentValue === 'boolean') {
+    if (typeof currentValue === 'number') {
+      return String(roundToMaxThreeDecimals(currentValue));
+    }
+    return String(currentValue);
+  }
+  
+  // Handle arrays
+  if (Array.isArray(currentValue)) {
+    if (currentValue.length === 0) {
+      return '[]';
+    }
+    
+    const arrayElements = currentValue.map(item => 
+      generateJSCodeRecursive(item, pathContext, indentLevel + 1)
+    );
+    
+    return `[\n${nextIndent}${arrayElements.join(`,\n${nextIndent}`)}\n${indent}]`;
+  }
+  
+  // Handle objects
+  if (typeof currentValue === 'object') {
+    // Check for special transformation node (DTCG token with $type and $value)
+    if (currentValue.$type && currentValue.$value !== undefined) {
+      let effectiveValue = currentValue.$value;
+
+      // Handle path transformation logic for ALIASES (e.g., "{colors.slate.2}")
+      if (typeof effectiveValue === 'string' && effectiveValue.startsWith('{') && effectiveValue.endsWith('}')) {
+        // Extract inner path: "{colors.slate.2}" -> "colors.slate.2"
+        const innerPath = effectiveValue.slice(1, -1);
+        const segments = innerPath.split('.');
+        
+        // Determine context for injection based on pathContext
+        // For example, if pathContext is ['enso_colors', 'light', 'fill', 'default'],
+        // we want to inject 'light' as the second segment
+        let contextSegment = null;
+        if (pathContext.length >= 2) {
+          // Try to find a mode/theme context - typically the second level in structure
+          contextSegment = pathContext[1];
+        }
+        
+        let finalSegments;
+        if (contextSegment && segments.length > 1) {
+          // Inject context: ['colors', 'slate', '2'] + 'light' -> ['colors', 'light', 'slate', '2']
+          finalSegments = [segments[0], contextSegment, ...segments.slice(1)];
+        } else {
+          finalSegments = segments;
+        }
+        
+        // Join segments with dots to form base path
+        let pathString = finalSegments.join('.');
+        
+        // Check if the last segment is purely numeric
+        const lastSegment = finalSegments[finalSegments.length - 1];
+        if (/^\d+$/.test(lastSegment)) {
+          // Replace the last dot and number with LB[number]RB
+          const lastDotIndex = pathString.lastIndexOf('.');
+          if (lastDotIndex !== -1) {
+            pathString = pathString.substring(0, lastDotIndex) + 'LB' + lastSegment + 'RB';
+          }
+        }
+        
+        return pathString;
+      }
+      
+      // If effectiveValue is a number
+      if (typeof effectiveValue === 'number') {
+        return String(effectiveValue);
+      }
+      
+      // Handle literal string values
+      if (typeof effectiveValue === 'string') {
+        return `'${effectiveValue.replace(/'/g, "\'")}'`;
+      }
+      
+      // Handle other value types that might be in $value
+      return generateJSCodeRecursive(effectiveValue, pathContext, indentLevel);
+    }
+    
+    // Regular object handling
+    const keys = Object.keys(currentValue);
+    if (keys.length === 0) {
+      return '{}';
+    }
+    
+    const objectEntries = keys.map(key => {
+      const value = currentValue[key];
+      const newPathContext = [...pathContext, key];
+      
+      // Format the key - quote if not a valid JS identifier
+      const formattedKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key) ? key : `'${key}'`;
+      
+      const valueCode = generateJSCodeRecursive(value, newPathContext, indentLevel + 1);
+      
+      return `${nextIndent}${formattedKey}: ${valueCode}`;
+    });
+    
+    return `{\n${objectEntries.join(',\n')}\n${indent}}`;
+  }
+  
+  // Fallback for unknown types
+  return 'null';
+}
+
+/**
+ * Generates CSS code from a DTCG payload
+ * @param {Object} dtcgPayload - The DTCG payload object
+ * @returns {Object} - Object with code and structure properties
+ */
+function generateCSSCodeFromPayload(dtcgPayload) {
+  if (!dtcgPayload || typeof dtcgPayload !== 'object') {
+    return { code: '', structure: {} };
+  }
+  
+  const cssRules = [];
+  
+  // Iterate through each collection in the DTCG payload
+  for (const collectionName in dtcgPayload) {
+    const collection = dtcgPayload[collectionName];
+    
+    if (!collection || typeof collection !== 'object') continue;
+    
+    // Iterate through each mode in the collection
+    for (const modeName in collection) {
+      const modeData = collection[modeName];
+      
+      if (!modeData || typeof modeData !== 'object') continue;
+      
+      // Create CSS class selector
+      const sanitizedCollectionName = sanitizeForDTCG(collectionName);
+      const sanitizedModeName = sanitizeForDTCG(modeName);
+      const selector = `.${sanitizedCollectionName}-${sanitizedModeName}`;
+      
+      // Generate CSS variables for this scope
+      const variablesForScope = generateScopedCSSVariables(modeData, [], collectionName, modeName);
+      
+      // Only add rule if there are variables
+      if (variablesForScope.length > 0) {
+        const ruleContent = variablesForScope.map(variable => `  ${variable}`).join('\n');
+        cssRules.push(`${selector} {\n${ruleContent}\n}`);
+      }
+    }
+  }
+  
+  // Join all CSS rules
+  const finalCssString = cssRules.join('\n\n');
+  
+  return {
+    code: finalCssString,
+    structure: dtcgPayload
+  };
+}
+
+/**
+ * Recursively generates CSS variables for a specific mode scope
+ * @param {Object} dataNode - The current object being processed within the mode
+ * @param {Array} currentRelativePath - Path segments relative to the current mode
+ * @param {string} currentCollectionName - The collection being processed
+ * @param {string} currentModeName - The mode being processed
+ * @returns {Array} - Array of CSS variable declaration strings
+ */
+function generateScopedCSSVariables(dataNode, currentRelativePath, currentCollectionName, currentModeName) {
+  const cssVariables = [];
+  
+  if (!dataNode || typeof dataNode !== 'object') {
+    return cssVariables;
+  }
+  
+  for (const key in dataNode) {
+    const value = dataNode[key];
+    
+    // Check if this is a token (has $type and $value)
+    if (value && typeof value === 'object' && value.$type && value.$value !== undefined) {
+      // This is a token - generate CSS variable
+      const variableName = `--${[...currentRelativePath, key].join('-')}`;
+      
+      let cssValue;
+      
+      // Handle alias values
+      if (typeof value.$value === 'string' && value.$value.startsWith('{') && value.$value.endsWith('}')) {
+        // This is an alias - resolve it using the same logic as JS generation
+        cssValue = resolveCSSAlias(value.$value, currentCollectionName, currentModeName);
+      } else {
+        // Direct value - convert using existing function
+        cssValue = convertFigmaValueToDTCG(value.$value, value.$type, value.$type);
+        // For CSS, ensure string values are quoted if needed
+        if (typeof cssValue === 'string' && !cssValue.startsWith('#') && !cssValue.endsWith('px') && !cssValue.includes('var(')) {
+          cssValue = `'${cssValue}'`;
+        }
+      }
+      
+      cssVariables.push(`${variableName}: ${cssValue};`);
+    } else if (value && typeof value === 'object') {
+      // This is a group - recurse deeper
+      const nestedVariables = generateScopedCSSVariables(
+        value, 
+        [...currentRelativePath, key], 
+        currentCollectionName, 
+        currentModeName
+      );
+      cssVariables.push(...nestedVariables);
+    }
+  }
+  
+  return cssVariables;
+}
+
+/**
+ * Resolves a CSS alias using the same logic as JS generation
+ * @param {string} aliasString - The alias string like "{colors.slate.3}"
+ * @param {string} currentCollectionName - Current collection context
+ * @param {string} currentModeName - Current mode context
+ * @returns {string} - CSS var() reference
+ */
+function resolveCSSAlias(aliasString, currentCollectionName, currentModeName) {
+  // Extract inner path: "{colors.slate.3}" -> "colors.slate.3"
+  const innerPath = aliasString.slice(1, -1);
+  const segments = innerPath.split('.');
+  
+  // Use current mode as context (similar to JS generation logic)
+  const contextSegment = currentModeName;
+  
+  let finalSegments;
+  if (contextSegment && segments.length > 1) {
+    // Inject context: ['colors', 'slate', '3'] + 'light' -> ['colors', 'light', 'slate', '3']
+    finalSegments = [segments[0], contextSegment, ...segments.slice(1)];
+  } else {
+    finalSegments = segments;
+  }
+  
+  // For CSS, we need the path relative to the target's scope
+  // If finalSegments is ['colors', 'light', 'slate', '3'], 
+  // the relative path within .colors-light scope would be ['slate', '3']
+  if (finalSegments.length >= 3) {
+    // Remove collection and mode to get relative path
+    const relativePath = finalSegments.slice(2);
+    return `var(--${relativePath.join('-')})`;
+  } else {
+    // Fallback - use the segments as-is
+    return `var(--${finalSegments.join('-')})`;
+  }
+}
+
+/**
+ * Generates Tailwind configuration code from a DTCG payload
+ * @param {Object} dtcgPayload - The DTCG payload object
+ * @returns {Object} - Object with code and structure properties
+ */
+function generateTailwindCodeFromPayload(dtcgPayload) {
+  if (!dtcgPayload || typeof dtcgPayload !== 'object') {
+    return { code: '', structure: {} };
+  }
+  
+  // Initialize Tailwind config structure
+  const tailwindConfig = {
+    theme: {
+      extend: {}
+    }
+  };
+  
+  // Set to track processed collection-relative keys for deduplication
+  const processedCollectionRelativeKeys = new Set();
+  
+  // Map DTCG types to Tailwind theme sections
+  const dtcgTypeToTailwindSection = {
+    'color': 'colors',
+    'number': 'spacing',
+    'fontFamily': 'fontFamily',
+    'fontWeight': 'fontWeight',
+    'fontStyle': 'fontStyle',
+    'fontSize': 'fontSize',
+    'lineHeight': 'lineHeight',
+    'letterSpacing': 'letterSpacing',
+    'borderRadius': 'borderRadius',
+    'borderWidth': 'borderWidth',
+    'boxShadow': 'boxShadow',
+    'opacity': 'opacity'
+  };
+  
+  // Iterate through each collection in the DTCG payload
+  for (const collectionName in dtcgPayload) {
+    const collection = dtcgPayload[collectionName];
+    
+    if (!collection || typeof collection !== 'object') continue;
+    
+    const sanitizedCollectionName = sanitizeForDTCG(collectionName);
+    
+    // Iterate through each mode in the collection
+    for (const modeName in collection) {
+      const modeData = collection[modeName];
+      
+      if (!modeData || typeof modeData !== 'object') continue;
+      
+      // Process tokens within this mode
+      collectTailwindTokensRecursive(
+        modeData,
+        sanitizedCollectionName,
+        [],
+        tailwindConfig.theme.extend,
+        processedCollectionRelativeKeys,
+        dtcgTypeToTailwindSection
+      );
+    }
+  }
+  
+  // Generate the final code string
+  const finalTailwindString = JSON.stringify(tailwindConfig, null, 2);
+  
+  return {
+    code: finalTailwindString,
+    structure: dtcgPayload
+  };
+}
+
+/**
+ * Recursively processes tokens and builds the Tailwind configuration
+ * @param {Object} currentNode - The current object being processed within the mode
+ * @param {string} sanitizedCollectionName - The sanitized collection name
+ * @param {Array} currentRelativePathSegments - Path segments relative to the collection/mode
+ * @param {Object} extendObject - The tailwindConfig.theme.extend object
+ * @param {Set} processedKeys - Set for deduplication
+ * @param {Object} typeMap - DTCG type to Tailwind section mapping
+ */
+function collectTailwindTokensRecursive(currentNode, sanitizedCollectionName, currentRelativePathSegments, extendObject, processedKeys, typeMap) {
+  if (!currentNode || typeof currentNode !== 'object') {
+    return;
+  }
+  
+  for (const key in currentNode) {
+    const tokenData = currentNode[key];
+    const newRelativePathSegments = [...currentRelativePathSegments, sanitizeForDTCG(key)];
+    
+    // Check if this is a token (has $type and $value)
+    if (tokenData && typeof tokenData === 'object' && tokenData.$type && tokenData.$value !== undefined) {
+      // This is a token - process it for Tailwind
+      
+      // Create the relative key for this token (e.g., "type-1")
+      const tailwindRelativeKey = newRelativePathSegments.join('-');
+      
+      // Create unique key for deduplication (e.g., "enso_colors.type-1")
+      const uniqueKeyForDeduplication = `${sanitizedCollectionName}.${tailwindRelativeKey}`;
+      
+      // Skip if already processed (from another mode)
+      if (processedKeys.has(uniqueKeyForDeduplication)) {
+        continue;
+      }
+      
+      // Add to processed keys
+      processedKeys.add(uniqueKeyForDeduplication);
+      
+      // Create the Tailwind value (e.g., "var(--type-1)")
+      const tailwindValue = `var(--${tailwindRelativeKey})`;
+      
+      // Get the Tailwind section based on token type
+      const sectionName = typeMap[tokenData.$type];
+      if (!sectionName) {
+        continue; // Skip tokens with unmapped types
+      }
+      
+      // Ensure the section exists in extend object
+      if (!extendObject[sectionName]) {
+        extendObject[sectionName] = {};
+      }
+      
+      // Ensure the collection exists within the section
+      if (!extendObject[sectionName][sanitizedCollectionName]) {
+        extendObject[sectionName][sanitizedCollectionName] = {};
+      }
+      
+      // Add the token to the Tailwind config
+      extendObject[sectionName][sanitizedCollectionName][tailwindRelativeKey] = tailwindValue;
+      
+    } else if (tokenData && typeof tokenData === 'object') {
+      // This is a group - recurse deeper
+      collectTailwindTokensRecursive(
+        tokenData,
+        sanitizedCollectionName,
+        newRelativePathSegments,
+        extendObject,
+        processedKeys,
+        typeMap
+      );
+    }
+  }
+}
+
+/**
+ * Function to create a simplified DTCG-compatible payload from Figma variables data
+ * @param {Object} figmaData - The Figma variables data object
+ * @returns {Object} - The generated DTCG payload
+ */
 async function createSimplifiedDTCGPayload(figmaData) {
   const dtcgPayload = {};
   
@@ -808,16 +1427,8 @@ async function createSimplifiedDTCGPayload(figmaData) {
               processedValue = await resolveVariableAlias(value.id);
             }
 
-            // Determine the DTCG type - use target variable's properties for aliases
-            let typeSourceVariable = variable; // Default to current variable
-            if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS' && value.id) {
-              // Try to find the target variable to use its properties for type determination
-              const targetVariable = findVariableById(value.id, figmaData);
-              if (targetVariable) {
-                typeSourceVariable = targetVariable;
-              }
-            }
-            const dtcgType = mapFigmaTypeToDTCG(typeSourceVariable.resolvedType, typeSourceVariable.scopes);
+            // Use the new scope-based type resolution
+            const dtcgType = resolveDTCGType(variable);
             
             // This is a literal value - convert it using the existing function
             let finalValue;
@@ -826,7 +1437,7 @@ async function createSimplifiedDTCGPayload(figmaData) {
               finalValue = processedValue;
             } else {
               // This is a literal value - convert it using the existing function
-              finalValue = convertFigmaValueToDTCG(processedValue, typeSourceVariable.resolvedType, dtcgType);
+              finalValue = convertFigmaValueToDTCG(processedValue, variable.resolvedType, dtcgType);
             }
 
             currentObject[variableKey] = {
@@ -919,16 +1530,8 @@ async function createSimplifiedDTCGPayload(figmaData) {
               processedValue = await resolveVariableAlias(value.id);
             }
 
-            // Determine the DTCG type - use target variable's properties for aliases
-            let typeSourceVariable = variable; // Default to current variable
-            if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS' && value.id) {
-              // Try to find the target variable to use its properties for type determination
-              const targetVariable = findVariableById(value.id, figmaData);
-              if (targetVariable) {
-                typeSourceVariable = targetVariable;
-              }
-            }
-            const dtcgType = mapFigmaTypeToDTCG(typeSourceVariable.resolvedType, typeSourceVariable.scopes);
+            // Use the new scope-based type resolution
+            const dtcgType = resolveDTCGType(variable);
             
             // This is a literal value - convert it using the existing function
             let finalValue;
@@ -937,7 +1540,7 @@ async function createSimplifiedDTCGPayload(figmaData) {
               finalValue = processedValue;
             } else {
               // This is a literal value - convert it using the existing function
-              finalValue = convertFigmaValueToDTCG(processedValue, typeSourceVariable.resolvedType, dtcgType);
+              finalValue = convertFigmaValueToDTCG(processedValue, variable.resolvedType, dtcgType);
             }
 
             currentObject[variableKey] = {
@@ -1020,10 +1623,9 @@ function sanitizeForDTCG(name) {
 /**
  * Maps Figma variable types to DTCG types
  * @param {string} figmaResolvedType - Figma variable type (e.g., COLOR, FLOAT)
- * @param {Array} variableScopes - Array of Figma variable scopes
  * @returns {string} - DTCG type
  */
-function mapFigmaTypeToDTCG(figmaResolvedType, variableScopes = []) {
+function mapFigmaTypeToDTCG(figmaResolvedType) {
   if (!figmaResolvedType) return 'number'; // Default for safety
 
   // Handle COLOR type
@@ -1043,591 +1645,9 @@ function mapFigmaTypeToDTCG(figmaResolvedType, variableScopes = []) {
 
   // Handle FLOAT type (Figma's representation for numbers)
   if (figmaResolvedType === 'FLOAT') {
-    // Define dimension-indicating scopes
-    const dimensionScopes = [
-      'WIDTH_HEIGHT', 'GAP', 'CORNER_RADIUS', 'BORDER_WIDTH', 
-      'FONT_SIZE', 'LETTER_SPACING', 'MIN_WIDTH', 'MAX_WIDTH', 
-      'MIN_HEIGHT', 'MAX_HEIGHT', 'ITEM_SPACING', 'STROKE_WEIGHT'
-    ];
-    
-    // Check if any scope indicates this is a dimension
-    if (variableScopes && variableScopes.some(scope => dimensionScopes.includes(scope))) {
-      return 'dimension';
-    }
-    
     return 'number';
   }
 
   // Fallback for any other unknown figmaResolvedType
   return 'number';
-}
-
-/**
- * Converts a Figma value to DTCG format
- * @param {*} value - The value to convert
- * @param {string} figmaType - Figma variable type
- * @param {string} dtcgType - DTCG type (optional)
- */
-function convertFigmaValueToDTCG(value, figmaType, dtcgType) {
-  // Handle null values
-  if (value === null || value === undefined) {
-    return null;
-  }
-  
-  // Special handling for VARIABLE_ALIAS type
-  if (value && typeof value === 'object' && value.type === 'VARIABLE_ALIAS') {
-    // For aliases, use a reference format {id}
-    // Ideally, this would be converted to a proper path, but for now
-    // we'll use a simple reference format with the variable ID
-    return `{${value.id}}`;
-  }
-  
-  // Handle DTCG type specific conversions first
-  if (dtcgType === 'dimension') {
-    const num = parseFloat(value);
-    return isNaN(num) ? '0px' : roundToMaxThreeDecimals(num) + 'px';
-  }
-  
-  // Handle different types of Figma values
-  switch (figmaType) {
-    case 'COLOR':
-      // If it's a color object with RGB components
-      if (value && typeof value === 'object' && value.r !== undefined) {
-        // Check if color has opacity (alpha < 1)
-        if (value.a !== undefined && value.a !== 1) {
-          // Use HSLA format for colors with opacity
-          const hsl = rgbToHsl(value.r, value.g, value.b);
-          const alpha = roundToMaxThreeDecimals(value.a);
-          return `hsla(${hsl.h}, ${hsl.s}%, ${hsl.l}%, ${alpha})`;
-        }
-        
-        // Use hex format for opaque colors
-        const r = Math.round(value.r * 255).toString(16).padStart(2, '0');
-        const g = Math.round(value.g * 255).toString(16).padStart(2, '0');
-        const b = Math.round(value.b * 255).toString(16).padStart(2, '0');
-        
-        return `#${r}${g}${b}`;
-      }
-      
-      // For color values in other formats (like hex strings or references)
-      return value;
-      
-    case 'BOOLEAN':
-      return !!value;
-      
-    case 'STRING':
-      return String(value);
-      
-    case 'FLOAT':
-    case 'NUMBER':
-      // Ensure the value is a number
-      const num = parseFloat(value);
-      return isNaN(num) ? 0 : roundToMaxThreeDecimals(num);
-      
-    default:
-      // For any other types, return the value as-is
-      return value;
-  }
-}
-
-/**
- * Main orchestration function to fetch and process all variables
- */
-async function fetchAndLogAllVariables() {
-  try {
-    // Reset all state to ensure fresh data
-    resetPluginState();
-    
-    console.log('Starting variable fetch process...');
-    
-    // Fetch local variables first
-    console.log('Fetching local variables...');
-    await fetchLocalCollections();
-    
-    // Fetch shared (team library) variables
-    console.log('Fetching shared variables...');
-    await fetchSharedCollections();
-    
-    // Log summary of what was fetched
-    const localCount = allFetchedVariablesPayload.local.reduce((sum, collection) => sum + ((collection.variables && collection.variables.length) || 0), 0);
-    const sharedCount = allFetchedVariablesPayload.shared.reduce((sum, collection) => sum + ((collection.variables && collection.variables.length) || 0), 0);
-    console.log(`Fetch complete: ${localCount} local variables, ${sharedCount} shared variables`);
-    
-    // Log the final fetched payload before DTCG conversion
-    console.log('Final fetched variables payload:', allFetchedVariablesPayload);
-    
-    // Convert fetched variables to DTCG format
-    console.log('Converting to DTCG format...');
-    const simplifiedPayload = await createSimplifiedDTCGPayload(allFetchedVariablesPayload);
-    
-    console.log('Variable processing completed successfully');
-    
-    // End of orchestration function
-    return {
-      raw: allFetchedVariablesPayload,
-      dtcg: simplifiedPayload
-    };
-  } catch (error) {
-    console.error('Error in fetchAndLogAllVariables:', error);
-    
-    // Add error to payload if it exists
-    if (!allFetchedVariablesPayload.errorLog) {
-      allFetchedVariablesPayload.errorLog = {};
-    }
-    
-    allFetchedVariablesPayload.errorLog.orchestrationError = {
-      phase: 'fetchAndLogAllVariables',
-      message: error.message,
-      stack: error.stack,
-      timestamp: new Date().toISOString()
-    };
-    
-    return allFetchedVariablesPayload;
-  }
-}
-
-// Store the latest DTCG payload for JS code generation
-let latestDtcgPayload = null;
-
-/**
- * Generates JavaScript code from a DTCG payload
- * @param {Object} dtcgPayload - The DTCG payload object
- * @returns {string} - The generated JavaScript code
- */
-function generateJSCodeFromPayload(dtcgPayload) {
-  if (!dtcgPayload || typeof dtcgPayload !== 'object') {
-    return '{}';
-  }
-  
-  // Phase 1: Generate JS with placeholders
-  const intermediateJsString = generateJSCodeRecursive(dtcgPayload, [], 0);
-  
-  // Phase 2: Replace placeholders with actual bracket notation
-  const finalJsString = intermediateJsString.replace(/LB/g, '["').replace(/RB/g, '"]');
-  
-  return finalJsString;
-}
-
-/**
- * Recursively generates JavaScript code from a value
- * @param {*} currentValue - The current value being processed
- * @param {Array} pathContext - Array of keys representing the path to this value's parent
- * @param {number} indentLevel - Current indentation level for pretty printing
- * @returns {string} - The generated JavaScript code for this value
- */
-function generateJSCodeRecursive(currentValue, pathContext, indentLevel) {
-  const indent = '  '.repeat(indentLevel);
-  const nextIndent = '  '.repeat(indentLevel + 1);
-  
-  // Handle null and undefined
-  if (currentValue === null || currentValue === undefined) {
-    return 'null';
-  }
-  
-  // Handle primitives
-  if (typeof currentValue === 'string') {
-    return `'${currentValue.replace(/'/g, "\\'")}'`;
-  }
-  
-  if (typeof currentValue === 'number' || typeof currentValue === 'boolean') {
-    if (typeof currentValue === 'number') {
-      return String(roundToMaxThreeDecimals(currentValue));
-    }
-    return String(currentValue);
-  }
-  
-  // Handle arrays
-  if (Array.isArray(currentValue)) {
-    if (currentValue.length === 0) {
-      return '[]';
-    }
-    
-    const arrayElements = currentValue.map(item => 
-      generateJSCodeRecursive(item, pathContext, indentLevel + 1)
-    );
-    
-    return `[\n${nextIndent}${arrayElements.join(`,\n${nextIndent}`)}\n${indent}]`;
-  }
-  
-  // Handle objects
-  if (typeof currentValue === 'object') {
-    // Check for special transformation node (DTCG token with $type and $value)
-    if (currentValue.$type && currentValue.$value !== undefined) {
-      let effectiveValue = currentValue.$value;
-
-      // If the token type is 'dimension', attempt to parse its value (e.g., '10px') into a raw number.
-      if (currentValue.$type === 'dimension') {
-        if (typeof effectiveValue === 'string' && (effectiveValue.endsWith('px') || effectiveValue.endsWith('rem') || effectiveValue.endsWith('em') || effectiveValue.endsWith('%'))) {
-          const num = parseFloat(effectiveValue);
-          if (!isNaN(num)) {
-            effectiveValue = roundToMaxThreeDecimals(num); // effectiveValue is now a number, e.g., 10
-          }
-          // If parsing fails (e.g., malformed string), effectiveValue remains the original string
-          // and will be handled by the string literal logic below.
-        }
-        // If effectiveValue was already a number or an alias string like "{...}", it's unchanged.
-      }
-
-      // Handle path transformation logic for ALIASES (e.g., "{colors.slate.2}")
-      // This uses the potentially modified effectiveValue.
-      if (typeof effectiveValue === 'string' && effectiveValue.startsWith('{') && effectiveValue.endsWith('}')) {
-        // Extract inner path: "{colors.slate.2}" -> "colors.slate.2"
-        const innerPath = effectiveValue.slice(1, -1);
-        const segments = innerPath.split('.');
-        
-        // Determine context for injection based on pathContext
-        // For example, if pathContext is ['enso_colors', 'light', 'fill', 'default'],
-        // we want to inject 'light' as the second segment
-        let contextSegment = null;
-        if (pathContext.length >= 2) {
-          // Try to find a mode/theme context - typically the second level in structure
-          contextSegment = pathContext[1];
-        }
-        
-        let finalSegments;
-        if (contextSegment && segments.length > 1) {
-          // Inject context: ['colors', 'slate', '2'] + 'light' -> ['colors', 'light', 'slate', '2']
-          finalSegments = [segments[0], contextSegment, ...segments.slice(1)];
-        } else {
-          finalSegments = segments;
-        }
-        
-        // Join segments with dots to form base path
-        let pathString = finalSegments.join('.');
-        
-        // Check if the last segment is purely numeric
-        const lastSegment = finalSegments[finalSegments.length - 1];
-        if (/^\d+$/.test(lastSegment)) {
-          // Replace the last dot and number with LB[number]RB
-          const lastDotIndex = pathString.lastIndexOf('.');
-          if (lastDotIndex !== -1) {
-            pathString = pathString.substring(0, lastDotIndex) + 'LB' + lastSegment + 'RB';
-          }
-        }
-        
-        return pathString;
-      }
-      
-      // If effectiveValue is a number (either originally, or from dimension parsing)
-      if (typeof effectiveValue === 'number') {
-        return String(effectiveValue); // Output as a numeric literal, e.g., "10"
-      }
-      
-      // Handle literal string values (like "#16120c", or unparsed/non-dimension strings)
-      // This uses the potentially modified effectiveValue.
-      if (typeof effectiveValue === 'string') {
-        return `'${effectiveValue.replace(/'/g, "\'")}'`;
-      }
-      
-      // Handle other value types (e.g. boolean) that might be in $value
-      // This recursive call uses the potentially modified effectiveValue and will hit primitive handlers.
-      return generateJSCodeRecursive(effectiveValue, pathContext, indentLevel);
-    }
-    
-    // Regular object handling
-    const keys = Object.keys(currentValue);
-    if (keys.length === 0) {
-      return '{}';
-    }
-    
-    const objectEntries = keys.map(key => {
-      const value = currentValue[key];
-      const newPathContext = [...pathContext, key];
-      
-      // Format the key - quote if not a valid JS identifier
-      const formattedKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key) ? key : `'${key}'`;
-      
-      const valueCode = generateJSCodeRecursive(value, newPathContext, indentLevel + 1);
-      
-      return `${nextIndent}${formattedKey}: ${valueCode}`;
-    });
-    
-    return `{\n${objectEntries.join(',\n')}\n${indent}}`;
-  }
-  
-  // Fallback for unknown types
-  return 'null';
-}
-
-/**
- * Generates CSS code from a DTCG payload
- * @param {Object} dtcgPayload - The DTCG payload object
- * @returns {Object} - Object with code and structure properties
- */
-function generateCSSCodeFromPayload(dtcgPayload) {
-  if (!dtcgPayload || typeof dtcgPayload !== 'object') {
-    return { code: '', structure: {} };
-  }
-  
-  const cssRules = [];
-  
-  // Iterate through each collection in the DTCG payload
-  for (const collectionName in dtcgPayload) {
-    const collection = dtcgPayload[collectionName];
-    
-    if (!collection || typeof collection !== 'object') continue;
-    
-    // Iterate through each mode in the collection
-    for (const modeName in collection) {
-      const modeData = collection[modeName];
-      
-      if (!modeData || typeof modeData !== 'object') continue;
-      
-      // Create CSS class selector
-      const sanitizedCollectionName = sanitizeForDTCG(collectionName);
-      const sanitizedModeName = sanitizeForDTCG(modeName);
-      const selector = `.${sanitizedCollectionName}-${sanitizedModeName}`;
-      
-      // Generate CSS variables for this scope
-      const variablesForScope = generateScopedCSSVariables(modeData, [], collectionName, modeName);
-      
-      // Only add rule if there are variables
-      if (variablesForScope.length > 0) {
-        const ruleContent = variablesForScope.map(variable => `  ${variable}`).join('\n');
-        cssRules.push(`${selector} {\n${ruleContent}\n}`);
-      }
-    }
-  }
-  
-  // Join all CSS rules
-  const finalCssString = cssRules.join('\n\n');
-  
-  return {
-    code: finalCssString,
-    structure: dtcgPayload
-  };
-}
-
-/**
- * Recursively generates CSS variables for a specific mode scope
- * @param {Object} dataNode - The current object being processed within the mode
- * @param {Array} currentRelativePath - Path segments relative to the current mode
- * @param {string} currentCollectionName - The collection being processed
- * @param {string} currentModeName - The mode being processed
- * @returns {Array} - Array of CSS variable declaration strings
- */
-function generateScopedCSSVariables(dataNode, currentRelativePath, currentCollectionName, currentModeName) {
-  const cssVariables = [];
-  
-  if (!dataNode || typeof dataNode !== 'object') {
-    return cssVariables;
-  }
-  
-  for (const key in dataNode) {
-    const value = dataNode[key];
-    
-    // Check if this is a token (has $type and $value)
-    if (value && typeof value === 'object' && value.$type && value.$value !== undefined) {
-      // This is a token - generate CSS variable
-      const variableName = `--${[...currentRelativePath, key].join('-')}`;
-      
-      let cssValue;
-      
-      // Handle alias values
-      if (typeof value.$value === 'string' && value.$value.startsWith('{') && value.$value.endsWith('}')) {
-        // This is an alias - resolve it using the same logic as JS generation
-        cssValue = resolveCSSAlias(value.$value, currentCollectionName, currentModeName);
-      } else {
-        // Direct value - convert using existing function
-        cssValue = convertFigmaValueToDTCG(value.$value, value.$type, value.$type);
-        // For CSS, ensure string values are quoted if needed
-        if (typeof cssValue === 'string' && !cssValue.startsWith('#') && !cssValue.endsWith('px') && !cssValue.includes('var(')) {
-          cssValue = `'${cssValue}'`;
-        }
-      }
-      
-      cssVariables.push(`${variableName}: ${cssValue};`);
-    } else if (value && typeof value === 'object') {
-      // This is a group - recurse deeper
-      const nestedVariables = generateScopedCSSVariables(
-        value, 
-        [...currentRelativePath, key], 
-        currentCollectionName, 
-        currentModeName
-      );
-      cssVariables.push(...nestedVariables);
-    }
-  }
-  
-  return cssVariables;
-}
-
-/**
- * Resolves a CSS alias using the same logic as JS generation
- * @param {string} aliasString - The alias string like "{colors.slate.3}"
- * @param {string} currentCollectionName - Current collection context
- * @param {string} currentModeName - Current mode context
- * @returns {string} - CSS var() reference
- */
-function resolveCSSAlias(aliasString, currentCollectionName, currentModeName) {
-  // Extract inner path: "{colors.slate.3}" -> "colors.slate.3"
-  const innerPath = aliasString.slice(1, -1);
-  const segments = innerPath.split('.');
-  
-  // Use current mode as context (similar to JS generation logic)
-  const contextSegment = currentModeName;
-  
-  let finalSegments;
-  if (contextSegment && segments.length > 1) {
-    // Inject context: ['colors', 'slate', '3'] + 'light' -> ['colors', 'light', 'slate', '3']
-    finalSegments = [segments[0], contextSegment, ...segments.slice(1)];
-  } else {
-    finalSegments = segments;
-  }
-  
-  // For CSS, we need the path relative to the target's scope
-  // If finalSegments is ['colors', 'light', 'slate', '3'], 
-  // the relative path within .colors-light scope would be ['slate', '3']
-  if (finalSegments.length >= 3) {
-    // Remove collection and mode to get relative path
-    const relativePath = finalSegments.slice(2);
-    return `var(--${relativePath.join('-')})`;
-  } else {
-    // Fallback - use the segments as-is
-    return `var(--${finalSegments.join('-')})`;
-  }
-}
-
-/**
- * Generates Tailwind configuration code from a DTCG payload
- * @param {Object} dtcgPayload - The DTCG payload object
- * @returns {Object} - Object with code and structure properties
- */
-function generateTailwindCodeFromPayload(dtcgPayload) {
-  if (!dtcgPayload || typeof dtcgPayload !== 'object') {
-    return { code: '', structure: {} };
-  }
-  
-  // Initialize Tailwind config structure
-  const tailwindConfig = {
-    theme: {
-      extend: {}
-    }
-  };
-  
-  // Set to track processed collection-relative keys for deduplication
-  const processedCollectionRelativeKeys = new Set();
-  
-  // Map DTCG types to Tailwind theme sections
-  const dtcgTypeToTailwindSection = {
-    'color': 'colors',
-    'dimension': 'spacing',
-    'number': 'spacing',
-    'fontFamily': 'fontFamily',
-    'fontWeight': 'fontWeight',
-    'fontStyle': 'fontStyle',
-    'fontSize': 'fontSize',
-    'lineHeight': 'lineHeight',
-    'letterSpacing': 'letterSpacing',
-    'borderRadius': 'borderRadius',
-    'borderWidth': 'borderWidth',
-    'boxShadow': 'boxShadow',
-    'opacity': 'opacity'
-  };
-  
-  // Iterate through each collection in the DTCG payload
-  for (const collectionName in dtcgPayload) {
-    const collection = dtcgPayload[collectionName];
-    
-    if (!collection || typeof collection !== 'object') continue;
-    
-    const sanitizedCollectionName = sanitizeForDTCG(collectionName);
-    
-    // Iterate through each mode in the collection
-    for (const modeName in collection) {
-      const modeData = collection[modeName];
-      
-      if (!modeData || typeof modeData !== 'object') continue;
-      
-      // Process tokens within this mode
-      collectTailwindTokensRecursive(
-        modeData,
-        sanitizedCollectionName,
-        [],
-        tailwindConfig.theme.extend,
-        processedCollectionRelativeKeys,
-        dtcgTypeToTailwindSection
-      );
-    }
-  }
-  
-  // Generate the final code string
-  const finalTailwindString = JSON.stringify(tailwindConfig, null, 2);
-  
-  return {
-    code: finalTailwindString,
-    structure: dtcgPayload
-  };
-}
-
-/**
- * Recursively processes tokens and builds the Tailwind configuration
- * @param {Object} currentNode - The current object being processed within the mode
- * @param {string} sanitizedCollectionName - The sanitized collection name
- * @param {Array} currentRelativePathSegments - Path segments relative to the collection/mode
- * @param {Object} extendObject - The tailwindConfig.theme.extend object
- * @param {Set} processedKeys - Set for deduplication
- * @param {Object} typeMap - DTCG type to Tailwind section mapping
- */
-function collectTailwindTokensRecursive(currentNode, sanitizedCollectionName, currentRelativePathSegments, extendObject, processedKeys, typeMap) {
-  if (!currentNode || typeof currentNode !== 'object') {
-    return;
-  }
-  
-  for (const key in currentNode) {
-    const tokenData = currentNode[key];
-    const newRelativePathSegments = [...currentRelativePathSegments, sanitizeForDTCG(key)];
-    
-    // Check if this is a token (has $type and $value)
-    if (tokenData && typeof tokenData === 'object' && tokenData.$type && tokenData.$value !== undefined) {
-      // This is a token - process it for Tailwind
-      
-      // Create the relative key for this token (e.g., "type-1")
-      const tailwindRelativeKey = newRelativePathSegments.join('-');
-      
-      // Create unique key for deduplication (e.g., "enso_colors.type-1")
-      const uniqueKeyForDeduplication = `${sanitizedCollectionName}.${tailwindRelativeKey}`;
-      
-      // Skip if already processed (from another mode)
-      if (processedKeys.has(uniqueKeyForDeduplication)) {
-        continue;
-      }
-      
-      // Add to processed keys
-      processedKeys.add(uniqueKeyForDeduplication);
-      
-      // Create the Tailwind value (e.g., "var(--type-1)")
-      const tailwindValue = `var(--${tailwindRelativeKey})`;
-      
-      // Get the Tailwind section based on token type
-      const sectionName = typeMap[tokenData.$type];
-      if (!sectionName) {
-        continue; // Skip tokens with unmapped types
-      }
-      
-      // Ensure the section exists in extend object
-      if (!extendObject[sectionName]) {
-        extendObject[sectionName] = {};
-      }
-      
-      // Ensure the collection exists within the section
-      if (!extendObject[sectionName][sanitizedCollectionName]) {
-        extendObject[sectionName][sanitizedCollectionName] = {};
-      }
-      
-      // Add the token to the Tailwind config
-      extendObject[sectionName][sanitizedCollectionName][tailwindRelativeKey] = tailwindValue;
-      
-    } else if (tokenData && typeof tokenData === 'object') {
-      // This is a group - recurse deeper
-      collectTailwindTokensRecursive(
-        tokenData,
-        sanitizedCollectionName,
-        newRelativePathSegments,
-        extendObject,
-        processedKeys,
-        typeMap
-      );
-    }
-  }
 }
