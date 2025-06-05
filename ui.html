@@ -22,6 +22,13 @@
       /* Add new variables for the warning banner */
       --warning-banner-bg: #4E3534; /* Updated darker red background */
       --warning-banner-text: #FADEDC; /* Updated light pink/peach text */
+      --input-field-bg: rgba(255, 255, 255, 0.06);
+      /* Modal specific variables */
+      --modal-overlay-bg: rgba(0, 0, 0, 0.8);
+      --modal-bg: #2C2C2C; /* Same as tab-wrapper-bg */
+      --modal-input-bg: rgba(255, 255, 255, 0.12); /* Based on design opacity 0.12 */
+      --modal-tab-active-bg: rgba(255, 255, 255, 0.14); /* Based on design opacity 0.14 */
+      --modal-export-btn-bg: #00924B; /* Same as GitHub auth button */
     }
 
     body {
@@ -364,6 +371,226 @@
     }
     /* End of new styles for warning banner */
 
+    /* Export Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--modal-overlay-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .export-modal {
+      width: 360px;
+      background: var(--modal-bg);
+      display: flex;
+      flex-direction: column;
+      border-radius: 0;
+    }
+
+    .modal-header {
+      height: 38px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--tab-wrapper-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .modal-header span {
+      font-size: 11px;
+      color: #F1F1F1; /* Based on design text color rgb(0.9448, 0.9448, 0.9448) */
+      font-weight: 500;
+    }
+
+    .modal-close-btn {
+      background: none;
+      border: none;
+      color: var(--figma-color-text);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0;
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+
+    .modal-close-btn:hover {
+      opacity: 1;
+    }
+
+    .modal-body {
+      padding: 12px;
+      padding-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      flex-grow: 1;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .input-field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-field-group label {
+      font-size: 11px;
+      color: var(--figma-color-text);
+      font-weight: 400;
+    }
+
+    .modal-select-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .modal-select, .modal-input {
+      background: var(--modal-input-bg);
+      border: none;
+      border-radius: 4px;
+      height: 30px;
+      padding: 0 8px;
+      color: var(--figma-color-text);
+      font-family: inherit;
+      font-size: 11px;
+      width: 100%;
+      box-sizing: border-box;
+      outline: none;
+    }
+
+    .modal-select {
+      padding-right: 30px; /* Make space for the arrow */
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .modal-select:disabled {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--figma-color-text);
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .modal-input::placeholder {
+      color: var(--figma-color-text);
+      opacity: 0.7;
+    }
+
+    .modal-select-arrow {
+      position: absolute;
+      right: 8px;
+      pointer-events: none;
+      opacity: 0.8;
+    }
+
+    .modal-export-btn {
+      height: 32px;
+      background: var(--modal-export-btn-bg);
+      color: var(--figma-color-text);
+      border: none;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .modal-export-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .modal-export-btn:not(:disabled):hover {
+      opacity: 0.85;
+    }
+
+    .modal-status {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+      font-size: 11px;
+      text-align: center;
+      /* min-height: 16px; */
+      line-height: 1.2;
+      background: var(--tab-active-bg);
+      /* border-top: 1px solid var(--tab-wrapper-border); */
+      z-index: 10;
+      transform: translateY(100%);
+      opacity: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+
+    .modal-status.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .modal-status.success {
+      color: var(--figma-color-text);
+    }
+
+    .modal-status.error {
+      color: var(--figma-color-text);
+    }
+
+    .modal-status.info {
+      color: var(--figma-color-text);
+    }
+    /* End of Export Modal Styles */
+
+    /* Global Toast Styles */
+    .global-toast {
+      position: fixed;
+      border-radius: 4px;
+      bottom: 18px;
+      right: 18px;
+      transform: translateX(0%) translateY(100px);
+      background: var(--tab-active-bg);
+      padding: 10px 12px;
+      font-size: 11px;
+      line-height: 1.2;
+      z-index: 2000;
+      opacity: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      text-align: center;
+    }
+
+    .global-toast.show {
+      transform: translateX(0%) translateY(0);
+      opacity: 1;
+    }
+
+    .global-toast.success {
+      color: var(--modal-export-btn-bg);
+    }
+
+    .global-toast.error {
+      color: var(--figma-color-text);
+    }
+
+    .global-toast.info {
+      color: var(--tab-default-text-color);
+    }
+    /* End of Global Toast Styles */
   </style>
 </head>
 <body>
@@ -385,7 +612,7 @@
         <div class="tab-button-group"> <!-- Added inner group -->
           <button class="tab-button active" data-target="variables-view">Variables</button>
           <button class="tab-button" data-target="styles-view">Styles</button>
-          <button class="tab-button" data-target="github-view">Export to Github</button>
+          <button class="tab-button" data-target="github-view">Github Settings</button>
           <button class="tab-button" data-target="settings-view">Settings</button>
         </div> <!-- Closed inner group -->
       </div>
@@ -460,8 +687,163 @@
         
         <!-- GitHub Export View (Placeholder) -->
         <div class="tab-content" id="github-view">
-          <div id="output-area">
-            Output Area (Github)
+          <div id="github-auth-container" style="
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            padding: 40px;
+            margin: auto;
+          ">
+            <!-- GitHub Icon -->
+            <div id="github-icon" style="
+              width: 72px;
+              height: 72px;
+              border-radius: 16px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            ">
+              <img src="data:image/png;base64,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" alt="GitHub" style="
+                width: 100%;
+                height: 100%;
+                border-radius: 16px;
+                object-fit: contain;
+              ">
+            </div>
+
+            <!-- Heading Container -->
+            <div style="
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 4px;
+              max-width: 500px;
+              text-align: center;
+            ">
+              <h2 id="github-auth-heading" style="
+                margin: 0;
+                font-size: 12px;
+                font-weight: 500;
+                color: #FFFFFF;
+                line-height: 18px;
+              ">Authenticate your Github account</h2>
+              <p id="github-auth-subtitle" style="
+                margin: 0;
+                font-size: 11px;
+                color: #FFFFFF;
+                line-height: 16px;
+                opacity: 0.8;
+              ">Add your Personal Access token to connect your github account with Toko</p>
+            </div>
+
+            <!-- Button and Input Field Container -->
+            <div style="
+              display: flex;
+              flex-direction: column;
+              gap: 4px;
+              width: 400px;
+            ">
+              <!-- PAT Input Field -->
+              <div style="
+                background: var(--input-field-bg);
+                border-radius: 4px;
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0 12px;
+                box-sizing: border-box;
+              ">
+                <input type="password" id="github-pat-input" placeholder="Enter your access token here" style="
+                  background: none;
+                  border: none;
+                  color: #FFFFFF;
+                  font-family: inherit;
+                  font-size: 11px;
+                  line-height: 16px;
+                  width: 100%;
+                  outline: none;
+                ">
+              </div>
+
+              <!-- Authenticate Button -->
+              <button id="github-auth-button" style="
+                background: #00924B;
+                border: none;
+                border-radius: 4px;
+                height: 32px;
+                color: #FFFFFF;
+                font-family: inherit;
+                font-size: 11px;
+                font-weight: 500;
+                line-height: 16px;
+                cursor: pointer;
+                transition: opacity 0.2s;
+                opacity: 0.35;
+              " disabled>Authenticate</button>
+            </div>
+
+            <!-- Status Message -->
+            <div id="github-auth-status" style="
+              max-width: 400px;
+              text-align: center;
+              font-size: 11px;
+              line-height: 1.4;
+              display: none;
+            "></div>
+          </div>
+
+          <!-- Authenticated State (Initially Hidden) -->
+          <div id="github-authenticated-container" style="
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            padding: 40px;
+            margin: auto;
+          ">
+            <!-- Success Message -->
+            <div style="
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 4px;
+              text-align: center;
+              
+            ">
+              <h2 style="
+                margin: 0;
+                font-size: 14px;
+                font-weight: 500;
+                color: #FFFFFF;
+                line-height: 24px;
+              ">Authenticated</h2>
+              <p id="github-username-display" style="
+                margin: 0;
+                font-size: 11px;
+                color: #FFFFFF;
+                line-height: 16px;
+                opacity: 0.7;
+              ">Connected to GitHub as <span id="github-username"></span></p>
+            </div>
+
+            <!-- Disconnect Button -->
+            <button id="github-disconnect-button" style="
+              background: var(--tab-active-bg);
+              border-radius: 4px;
+              color: var(--figma-color-text);
+              height: 28px;
+              border: none;
+              font-family: inherit;
+              font-size: 11px;
+              padding: 0 16px;
+              cursor: pointer;
+              /* opacity: 0.8; */
+              transition: opacity 0.2s;
+            ">Disconnect</button>
           </div>
          </div>
 
@@ -527,6 +909,15 @@
       // Setup download and copy button functionality
       setupActionButtons();
 
+      // Setup GitHub authentication functionality
+      setupGitHubAuthentication();
+
+      // Check initial GitHub authentication status
+      checkGitHubAuthStatus();
+
+      // Setup GitHub export modal functionality
+      setupGitHubExportModal();
+
       // Simplified message handler - properly handle real data and display it
       window.onmessage = async (event) => {
         const msg = event.data.pluginMessage;
@@ -569,6 +960,34 @@
             messageEl.textContent = displayMessage;
             banner.style.display = 'block';
           }
+        } else if (msg.type === 'GITHUB_AUTH_STATUS') {
+          // Handle initial authentication status
+          if (msg.payload.isAuthenticated) {
+            showGitHubAuthenticatedState(msg.payload.username);
+          } else {
+            showGitHubAuthState();
+          }
+        } else if (msg.type === 'GITHUB_AUTH_SUCCESS') {
+          // Handle successful authentication
+          showGitHubAuthenticatedState(msg.payload.username);
+          showGitHubAuthStatus('Successfully authenticated!', 'success');
+          setTimeout(() => {
+            hideGitHubAuthStatus();
+          }, 3000);
+        } else if (msg.type === 'GITHUB_AUTH_ERROR') {
+          // Handle authentication error
+          showGitHubAuthStatus(msg.payload.error || 'Authentication failed. Please check your token.', 'error');
+        } else if (msg.type === 'GITHUB_AUTH_REQUIRED_FOR_EXPORT') {
+          // User tried to export but is not authenticated - switch to GitHub tab
+          switchToGitHubTab();
+          showGitHubAuthStatus('Please authenticate with GitHub to export your variables.', 'info');
+        } else if (msg.type === 'GITHUB_DISCONNECTED') {
+          // Handle successful disconnection
+          showGitHubAuthState();
+          showGitHubAuthStatus('Successfully disconnected from GitHub.', 'info');
+          setTimeout(() => {
+            hideGitHubAuthStatus();
+          }, 3000);
         }
       };
     });
@@ -1148,6 +1567,9 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+          } else {
+            // Show toast when no data is selected
+            showGlobalToast('Select a variable first from the tree', 'error');
           }
         });
       }
@@ -1197,14 +1619,17 @@
                 copyBtn.textContent = originalText;
               }, 1000);
             }
+          } else {
+            // Show toast when no data is selected
+            showGlobalToast('Select a variable first from the tree', 'error');
           }
         });
       }
 
       if (exportBtn) {
         exportBtn.addEventListener('click', () => {
-          // Handle export button click
-          console.log('Export to Github button clicked');
+          // Handle export button click - check auth and show modal
+          handleExportToGitHub();
         });
       }
     }
@@ -1271,6 +1696,785 @@
 
       return (content && content.trim() !== '') ? { content, type, filename, mimeType } : null;
     }
+
+    // Setup GitHub authentication functionality
+    function setupGitHubAuthentication() {
+      const patInput = document.getElementById('github-pat-input');
+      const authButton = document.getElementById('github-auth-button');
+      const disconnectButton = document.getElementById('github-disconnect-button');
+      const exportButton = document.getElementById('export-github-btn');
+
+      // Enable/disable authenticate button based on input
+      if (patInput && authButton) {
+        patInput.addEventListener('input', () => {
+          const hasValue = patInput.value.trim().length > 0;
+          authButton.disabled = !hasValue;
+          authButton.style.opacity = hasValue ? '1' : '0.35';
+        });
+
+        // Handle authenticate button click
+        authButton.addEventListener('click', () => {
+          const pat = patInput.value.trim();
+          if (pat) {
+            authenticateWithGitHub(pat);
+          }
+        });
+
+        // Handle Enter key in PAT input
+        patInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter' && !authButton.disabled) {
+            const pat = patInput.value.trim();
+            if (pat) {
+              authenticateWithGitHub(pat);
+            }
+          }
+        });
+      }
+
+      // Handle disconnect button click
+      if (disconnectButton) {
+        disconnectButton.addEventListener('click', () => {
+          disconnectGitHub();
+        });
+      }
+
+      // Handle Export to GitHub button click
+      if (exportButton) {
+        exportButton.addEventListener('click', () => {
+          handleExportToGitHub();
+        });
+      }
+    }
+
+    // Check initial GitHub authentication status
+    function checkGitHubAuthStatus() {
+      // Request authentication status from plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'CHECK_GITHUB_AUTH'
+        } 
+      }, '*');
+    }
+
+    // Authenticate with GitHub using PAT
+    function authenticateWithGitHub(pat) {
+      showGitHubAuthStatus('Authenticating...', 'info');
+      
+      // Send authentication request to plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'AUTHENTICATE_GITHUB',
+          payload: { pat: pat }
+        } 
+      }, '*');
+    }
+
+    // Handle Export to GitHub button click
+    function handleExportToGitHub() {
+      // First check if user is authenticated
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'CHECK_GITHUB_AUTH_FOR_EXPORT'
+        } 
+      }, '*');
+    }
+
+    // Disconnect from GitHub
+    function disconnectGitHub() {
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'DISCONNECT_GITHUB'
+        } 
+      }, '*');
+    }
+
+    // Show GitHub authentication status message
+    function showGitHubAuthStatus(message, type = 'info') {
+      const statusEl = document.getElementById('github-auth-status');
+      if (statusEl) {
+        statusEl.textContent = message;
+        statusEl.style.display = 'block';
+        
+        // Set color based on type
+        switch (type) {
+          case 'error':
+            statusEl.style.color = '#FF6B6B';
+            break;
+          case 'success':
+            statusEl.style.color = '#00924B';
+            break;
+          case 'info':
+          default:
+            statusEl.style.color = '#A0A0A0';
+            break;
+        }
+      }
+    }
+
+    // Hide GitHub authentication status message
+    function hideGitHubAuthStatus() {
+      const statusEl = document.getElementById('github-auth-status');
+      if (statusEl) {
+        statusEl.style.display = 'none';
+      }
+    }
+
+    // Switch to GitHub authentication UI state
+    function showGitHubAuthState() {
+      const authContainer = document.getElementById('github-auth-container');
+      const authenticatedContainer = document.getElementById('github-authenticated-container');
+      
+      if (authContainer && authenticatedContainer) {
+        authContainer.style.display = 'flex';
+        authenticatedContainer.style.display = 'none';
+      }
+      
+      // Clear PAT input
+      const patInput = document.getElementById('github-pat-input');
+      if (patInput) {
+        patInput.value = '';
+        // Trigger input event to update button state
+        patInput.dispatchEvent(new Event('input'));
+      }
+      
+      hideGitHubAuthStatus();
+    }
+
+    // Switch to authenticated UI state
+    function showGitHubAuthenticatedState(username) {
+      const authContainer = document.getElementById('github-auth-container');
+      const authenticatedContainer = document.getElementById('github-authenticated-container');
+      const usernameSpan = document.getElementById('github-username');
+      
+      if (authContainer && authenticatedContainer) {
+        authContainer.style.display = 'none';
+        authenticatedContainer.style.display = 'flex';
+      }
+      
+      if (usernameSpan && username) {
+        usernameSpan.textContent = username;
+      }
+      
+      hideGitHubAuthStatus();
+    }
+
+    // Switch to GitHub tab
+    function switchToGitHubTab() {
+      const githubTabButton = document.querySelector('[data-target="github-view"]');
+      if (githubTabButton) {
+        githubTabButton.click();
+      }
+    }
+
+    // Setup GitHub export modal functionality
+    function setupGitHubExportModal() {
+      const exportButton = document.getElementById('export-github-btn');
+      const modalOverlay = document.getElementById('export-github-modal-overlay');
+      const modalCloseBtn = document.getElementById('export-modal-close-btn');
+      const modalTitle = document.getElementById('modal-title');
+      
+      // Form elements
+      const repoSelect = document.getElementById('github-repo-select');
+      const newRepoInput = document.getElementById('github-new-repo-name');
+      const branchSelect = document.getElementById('github-branch-select');
+      const newBranchInput = document.getElementById('github-new-branch-name');
+      const fileSelect = document.getElementById('github-file-select');
+      const fileNameInput = document.getElementById('github-file-name');
+      
+      // Export button and status
+      const modalExportBtn = document.getElementById('modal-export-button');
+      const modalStatus = document.getElementById('export-modal-status');
+      
+      // Show modal when export button is clicked
+      exportButton.addEventListener('click', () => {
+        // Check if there's valid data to export before opening modal
+        const data = getActiveCodeTabData();
+        if (!data) {
+          // Show toast when no data is selected
+          showGlobalToast('Select a variable first from the tree', 'error');
+          return;
+        }
+
+        // Update modal title with current active tab
+        const activeTabName = getCurrentActiveTabName();
+        modalTitle.textContent = `Export selected "${activeTabName}" code to Github`;
+        
+        // Update file name placeholder based on active tab
+        const fileExtension = getFileExtensionForTab(activeTabName);
+        fileNameInput.placeholder = `filename.${fileExtension} (use / for folders, e.g., src/tokens.${fileExtension})`;
+        
+        // Reset form
+        resetModalForm();
+        
+        // Show modal
+        modalOverlay.style.display = 'flex';
+        
+        // Check GitHub auth and load repos if authenticated
+        checkGitHubAuthForExport();
+      });
+
+      // Close modal
+      modalCloseBtn.addEventListener('click', () => {
+        modalOverlay.style.display = 'none';
+      });
+
+      // Close modal when clicking overlay
+      modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+          modalOverlay.style.display = 'none';
+        }
+      });
+
+      // Repository selection handling
+      repoSelect.addEventListener('change', () => {
+        const isCreateNew = repoSelect.value === '__CREATE_NEW__';
+        newRepoInput.style.display = isCreateNew ? 'block' : 'none';
+        
+        // Reset dependent fields when repo changes
+        resetDependentFields();
+        
+        if (!isCreateNew && repoSelect.value) {
+          // Load branches for selected repo and enable branch select
+          branchSelect.disabled = false;
+          loadBranchesForRepo(repoSelect.value);
+        } else if (isCreateNew && newRepoInput.value.trim()) {
+          // Enable branch select for new repo
+          branchSelect.disabled = false;
+          clearBranchOptions();
+        } else {
+          // No repo selected, disable branch and file selects
+          branchSelect.disabled = true;
+          fileSelect.disabled = true;
+          clearBranchOptions();
+          clearFileOptions();
+        }
+        
+        updateExportButtonState();
+      });
+
+      // Branch selection handling
+      branchSelect.addEventListener('change', () => {
+        const isCreateNew = branchSelect.value === '__CREATE_NEW__';
+        newBranchInput.style.display = isCreateNew ? 'block' : 'none';
+        
+        // Reset file selection when branch changes
+        fileSelect.value = '';
+        fileNameInput.value = '';
+        
+        if (!isCreateNew && branchSelect.value && repoSelect.value && repoSelect.value !== '__CREATE_NEW__') {
+          // Load files for selected repo/branch and enable file select
+          fileSelect.disabled = false;
+          loadFilesForBranch(repoSelect.value, branchSelect.value);
+        } else if (isCreateNew || branchSelect.value) {
+          // Enable file select for new branch or when branch is selected
+          fileSelect.disabled = false;
+          clearFileOptions();
+        } else {
+          // No branch selected, disable file select
+          fileSelect.disabled = true;
+          clearFileOptions();
+        }
+        
+        updateExportButtonState();
+      });
+
+      // File selection handling
+      fileSelect.addEventListener('change', () => {
+        const isCreateNew = fileSelect.value === '__CREATE_NEW__';
+        
+        if (isCreateNew) {
+          // Show file name input when creating new file
+          fileNameInput.style.display = 'block';
+          fileNameInput.value = ''; // Clear any previous value
+          
+          // Update placeholder to show folder support
+          const activeTabName = getCurrentActiveTabName();
+          const fileExtension = getFileExtensionForTab(activeTabName);
+          fileNameInput.placeholder = `filename.${fileExtension} (use / for folders, e.g., src/tokens.${fileExtension})`;
+        } else {
+          // Hide file name input when selecting existing file
+          fileNameInput.style.display = 'none';
+          if (fileSelect.value && fileSelect.value !== '__CREATE_NEW__') {
+            // Store selected filename for later use in export
+            fileNameInput.value = fileSelect.value;
+          } else {
+            fileNameInput.value = '';
+          }
+        }
+        
+        updateExportButtonState();
+      });
+
+      // File name input handling
+      fileNameInput.addEventListener('input', () => {
+        updateExportButtonState();
+      });
+
+      // New repo name input handling
+      newRepoInput.addEventListener('input', () => {
+        // When user types in new repo name, enable branch select
+        if (newRepoInput.value.trim()) {
+          branchSelect.disabled = false;
+          populateDefaultBranchesForNewRepo();
+        } else {
+          branchSelect.disabled = true;
+          fileSelect.disabled = true;
+          clearBranchOptions();
+          clearFileOptions();
+        }
+        updateExportButtonState();
+      });
+
+      // New branch name input handling
+      newBranchInput.addEventListener('input', () => {
+        // When user types in new branch name, enable file select
+        if (newBranchInput.value.trim()) {
+          fileSelect.disabled = false;
+          clearFileOptions();
+        } else {
+          fileSelect.disabled = true;
+          clearFileOptions();
+        }
+        updateExportButtonState();
+      });
+
+      // Final export button
+      modalExportBtn.addEventListener('click', () => {
+        handleExportSubmission();
+      });
+
+      // Helper functions
+      function getCurrentActiveTabName() {
+        const activeTab = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
+        if (!activeTab) return 'JSON';
+        
+        const targetId = activeTab.getAttribute('data-target');
+        switch (targetId) {
+          case 'json-code-content': return 'JSON';
+          case 'js-code-content': return 'JS';
+          case 'css-code-content': return 'CSS';
+          case 'tailwind-code-content': return 'Tailwind';
+          default: return 'JSON';
+        }
+      }
+
+      function getFileExtensionForTab(tabName) {
+        switch (tabName.toLowerCase()) {
+          case 'json': return 'json';
+          case 'js': return 'js';
+          case 'css': return 'css';
+          case 'tailwind': return 'js'; // tailwind config is typically .js
+          default: return 'json';
+        }
+      }
+
+      function resetModalForm() {
+        repoSelect.value = '';
+        branchSelect.value = '';
+        fileSelect.value = '';
+        fileNameInput.value = '';
+        newRepoInput.value = '';
+        newBranchInput.value = '';
+        newRepoInput.style.display = 'none';
+        newBranchInput.style.display = 'none';
+        fileNameInput.style.display = 'none'; // Hide file name input initially
+        
+        // Clear status and disable export button
+        showModalStatus('', 'info');
+        modalExportBtn.disabled = true;
+        
+        // Initialize field dependencies - only repo should be enabled
+        branchSelect.disabled = true;
+        fileSelect.disabled = true;
+        
+        // Clear options except for create new
+        clearBranchOptions();
+        clearFileOptions();
+      }
+
+      function resetDependentFields() {
+        // Reset branch selection
+        branchSelect.value = '';
+        newBranchInput.value = '';
+        newBranchInput.style.display = 'none';
+        
+        // Reset file selection
+        fileSelect.value = '';
+        fileNameInput.value = '';
+        fileNameInput.style.display = 'none'; // Hide file name input when resetting
+        
+        // Disable dependent fields
+        fileSelect.disabled = true;
+        
+        // Clear options
+        clearBranchOptions();
+        clearFileOptions();
+      }
+
+      function clearBranchOptions() {
+        branchSelect.innerHTML = '<option value="" disabled selected>Select your Branch</option><option value="__CREATE_NEW__">Create new branch...</option>';
+      }
+
+      function clearFileOptions() {
+        fileSelect.innerHTML = '<option value="" disabled selected>Select your File</option><option value="__CREATE_NEW__">Create new file...</option>';
+      }
+
+      function updateExportButtonState() {
+        const hasRepo = repoSelect.value && (repoSelect.value !== '__CREATE_NEW__' || newRepoInput.value.trim());
+        const hasBranch = branchSelect.value && (branchSelect.value !== '__CREATE_NEW__' || newBranchInput.value.trim());
+        
+        // Check file name based on selection type
+        let hasFileName = false;
+        if (fileSelect.value === '__CREATE_NEW__') {
+          // Creating new file - need input field to have value
+          hasFileName = fileNameInput.value.trim() !== '';
+        } else if (fileSelect.value && fileSelect.value !== '') {
+          // Existing file selected
+          hasFileName = true;
+        }
+        
+        modalExportBtn.disabled = !(hasRepo && hasBranch && hasFileName);
+      }
+
+      function checkGitHubAuthForExport() {
+        showModalStatus('Checking GitHub authentication...', 'info', false);
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'CHECK_GITHUB_AUTH_FOR_MODAL'
+          } 
+        }, '*');
+      }
+
+      function loadRepositories() {
+        showModalStatus('Loading repositories', 'info', false);
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'GET_GITHUB_REPOS'
+          } 
+        }, '*');
+      }
+
+      function loadBranchesForRepo(repoName) {
+        showModalStatus('Loading branches', 'info', false);
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'GET_GITHUB_BRANCHES',
+            payload: { repo: repoName }
+          } 
+        }, '*');
+      }
+
+      function loadFilesForBranch(repoName, branchName) {
+        showModalStatus('Loading files', 'info', false);
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'GET_GITHUB_FILES',
+            payload: { repo: repoName, branch: branchName }
+          } 
+        }, '*');
+      }
+
+      function handleExportSubmission() {
+        // Get current tab data
+        const currentTabData = window.getActiveCodeTabData();
+        if (!currentTabData) {
+          showModalStatus('No content to export. Please select some variables first.', 'error', true, 4000);
+          return;
+        }
+
+        // Determine file name based on selection type
+        let fileName;
+        if (fileSelect.value === '__CREATE_NEW__') {
+          fileName = fileNameInput.value.trim();
+        } else {
+          fileName = fileSelect.value;
+        }
+
+        // Prepare export data
+        const exportData = {
+          repository: repoSelect.value === '__CREATE_NEW__' ? newRepoInput.value.trim() : repoSelect.value,
+          branch: branchSelect.value === '__CREATE_NEW__' ? newBranchInput.value.trim() : branchSelect.value,
+          fileName: fileName,
+          content: currentTabData.content,
+          isNewRepo: repoSelect.value === '__CREATE_NEW__',
+          isNewBranch: branchSelect.value === '__CREATE_NEW__',
+          contentType: currentTabData.type
+        };
+
+        showModalStatus('Exporting to GitHub', 'info', false);
+        modalExportBtn.disabled = true;
+
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'EXPORT_TO_GITHUB',
+            payload: exportData
+          } 
+        }, '*');
+      }
+
+      // Track toast timeout for clearing
+      let modalStatusTimeout = null;
+
+      function showModalStatus(message, type = 'info', autoHide = true, duration = 3000) {
+        // Clear any existing timeout
+        if (modalStatusTimeout) {
+          clearTimeout(modalStatusTimeout);
+          modalStatusTimeout = null;
+        }
+
+        // Set the message and type
+        modalStatus.textContent = message;
+        modalStatus.className = `modal-status ${type}`;
+        
+        // Show the toast if there's a message
+        if (message && message.trim() !== '') {
+          // Add show class to trigger animation
+          modalStatus.classList.add('show');
+          
+          // Auto-hide after duration if autoHide is true
+          if (autoHide) {
+            modalStatusTimeout = setTimeout(() => {
+              hideModalStatus();
+            }, duration);
+          }
+        } else {
+          // Hide immediately if no message
+          hideModalStatus();
+        }
+      }
+
+      function hideModalStatus() {
+        // Clear any pending timeout
+        if (modalStatusTimeout) {
+          clearTimeout(modalStatusTimeout);
+          modalStatusTimeout = null;
+        }
+        
+        // Remove show class to trigger hide animation
+        modalStatus.classList.remove('show');
+      }
+
+      // Add message handlers for modal-specific responses
+      window.addEventListener('message', (event) => {
+        const msg = event.data.pluginMessage;
+        if (!msg) return;
+
+        switch (msg.type) {
+          case 'GITHUB_AUTH_SUCCESS_FOR_MODAL':
+            hideModalStatus();
+            loadRepositories();
+            break;
+            
+          case 'GITHUB_AUTH_REQUIRED_FOR_MODAL':
+            showModalStatus('Please authenticate with GitHub first.', 'error', true, 4000);
+            setTimeout(() => {
+              modalOverlay.style.display = 'none';
+              switchToGitHubTab();
+            }, 2000);
+            break;
+            
+          case 'GITHUB_REPOS_LOADED':
+            populateRepositories(msg.payload.repos);
+            hideModalStatus();
+            break;
+            
+          case 'GITHUB_BRANCHES_LOADED':
+            populateBranches(msg.payload.branches);
+            hideModalStatus();
+            break;
+            
+          case 'GITHUB_FILES_LOADED':
+            populateFiles(msg.payload.files);
+            hideModalStatus();
+            break;
+            
+          case 'GITHUB_EXPORT_SUCCESS':
+            showModalStatus('Successfully exported to GitHub!', 'success', true, 2000);
+            modalExportBtn.disabled = false;
+            setTimeout(() => {
+              modalOverlay.style.display = 'none';
+            }, 2000);
+            break;
+            
+          case 'GITHUB_EXPORT_ERROR':
+            showModalStatus(msg.payload.error || 'Export failed. Please try again.', 'error', true, 5000);
+            modalExportBtn.disabled = false;
+            break;
+            
+          case 'GITHUB_API_ERROR':
+            showModalStatus(msg.payload.error || 'GitHub API error. Please try again.', 'error', true, 5000);
+            modalExportBtn.disabled = false;
+            break;
+        }
+      });
+
+      function populateRepositories(repos) {
+        const repoSelect = document.getElementById('github-repo-select');
+        if (!repoSelect) return;
+        
+        repoSelect.innerHTML = '<option value="" disabled selected>Select your repo</option>';
+        repos.forEach(repo => {
+          const option = document.createElement('option');
+          option.value = repo.name;
+          option.textContent = repo.name;
+          repoSelect.appendChild(option);
+        });
+        repoSelect.innerHTML += '<option value="__CREATE_NEW__">Create new repository</option>';
+      }
+
+      function populateBranches(branches) {
+        const branchSelect = document.getElementById('github-branch-select');
+        if (!branchSelect) return;
+        
+        branchSelect.innerHTML = '<option value="" disabled selected>Select your Branch</option>';
+        branches.forEach(branch => {
+          const option = document.createElement('option');
+          option.value = branch.name;
+          option.textContent = branch.name;
+          branchSelect.appendChild(option);
+        });
+        branchSelect.innerHTML += '<option value="__CREATE_NEW__">Create new branch</option>';
+      }
+
+      function populateFiles(files) {
+        const fileSelect = document.getElementById('github-file-select');
+        if (!fileSelect) return;
+        
+        fileSelect.innerHTML = '<option value="" disabled selected>Select your File</option>';
+        
+        // Sort files alphabetically by their full path
+        const sortedFiles = files.sort((a, b) => a.path.localeCompare(b.path));
+        
+        sortedFiles.forEach(file => {
+          const option = document.createElement('option');
+          option.value = file.path; // Use full path as value
+          option.textContent = file.path; // Show full path including folders
+          fileSelect.appendChild(option);
+        });
+        
+        fileSelect.innerHTML += '<option value="__CREATE_NEW__">Create new file...</option>';
+      }
+
+      function populateDefaultBranchesForNewRepo() {
+        branchSelect.innerHTML = '<option value="" disabled selected>Select your Branch</option><option value="main">main</option><option value="__CREATE_NEW__">Create new branch...</option>';
+      }
+    }
+
+    // Track global toast timeout for clearing
+    let globalToastTimeout = null;
+
+    function showGlobalToast(message, type = 'info', duration = 3000) {
+      // Get or create the global toast element
+      let toast = document.getElementById('global-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'global-toast';
+        toast.className = 'global-toast';
+        document.body.appendChild(toast);
+      }
+
+        // Clear any existing timeout
+      if (globalToastTimeout) {
+        clearTimeout(globalToastTimeout);
+        globalToastTimeout = null;
+        }
+
+        // Set the message and type
+      toast.textContent = message;
+      toast.className = `global-toast ${type}`;
+      
+      // Show the toast
+      toast.classList.add('show');
+      
+      // Auto-hide after duration
+      globalToastTimeout = setTimeout(() => {
+        hideGlobalToast();
+            }, duration);
+      }
+
+    function hideGlobalToast() {
+      const toast = document.getElementById('global-toast');
+      if (toast) {
+        // Clear any pending timeout
+        if (globalToastTimeout) {
+          clearTimeout(globalToastTimeout);
+          globalToastTimeout = null;
+        }
+        
+        // Remove show class to trigger hide animation
+        toast.classList.remove('show');
+      }
+    }
   </script>
+
+  <!-- Export to GitHub Modal -->
+  <div id="export-github-modal-overlay" class="modal-overlay" style="display: none;">
+    <div id="export-github-modal" class="export-modal">
+      <!-- Modal Header -->
+      <div class="modal-header">
+        <span id="modal-title">Export selected "JSON" code to Github</span>
+        <button id="export-modal-close-btn" class="modal-close-btn">
+          <svg width="11" height="11" viewBox="0 0 6 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 1L3 3M5 5L3 3M3 3L5 1L1 5" stroke="currentColor" stroke-width="0.75"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body">
+        <!-- Repository Input Group -->
+        <div class="input-field-group">
+          <label for="github-repo-select">Repository</label>
+          <div class="modal-select-wrapper">
+            <select id="github-repo-select" class="modal-select">
+              <option value="" disabled selected>Select your repo</option>
+              <option value="__CREATE_NEW__">Create new repository</option>
+            </select>
+            <svg class="modal-select-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5L6 7.5L9 4.5" stroke="white" stroke-opacity="0.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <input type="text" id="github-new-repo-name" class="modal-input" placeholder="Enter repo name" style="display: none;">
+        </div>
+
+        <!-- Branch Input Group -->
+        <div class="input-field-group">
+          <label for="github-branch-select">Branch</label>
+          <div class="modal-select-wrapper">
+            <select id="github-branch-select" class="modal-select" disabled>
+              <!-- <option value="">Select your Branch</option> -->
+              <option value="" disabled selected>Select your Branch</option>
+              <option value="__CREATE_NEW__">Create new branch</option>
+            </select>
+            <svg class="modal-select-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5L6 7.5L9 4.5" stroke="white" stroke-opacity="0.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <input type="text" id="github-new-branch-name" class="modal-input" placeholder="Enter Branch name" style="display: none;">
+        </div>
+
+        <!-- File Input Group -->
+        <div class="input-field-group">
+          <label for="github-file-select">File</label>
+          <div class="modal-select-wrapper">
+            <select id="github-file-select" class="modal-select" disabled>
+              <option value="" disabled selected>Select your File</option>
+              <option value="__CREATE_NEW__">Create new file</option>
+            </select>
+            <svg class="modal-select-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5L6 7.5L9 4.5" stroke="white" stroke-opacity="0.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <input type="text" id="github-file-name" class="modal-input" placeholder="filename.json (use / for folders, e.g., src/tokens.json)" style="display: none;">
+        </div>
+
+        <!-- Export Button -->
+        <button id="modal-export-button" class="modal-export-btn" disabled>Export</button>
+      </div>
+
+      <!-- Status Message -->
+      <div id="export-modal-status" class="modal-status"></div>
+    </div>
+  </div>
 </body>
 </html> 

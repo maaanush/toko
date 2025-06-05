@@ -535,6 +535,44 @@ figma.ui.onmessage = msg => {
       });
     }
   }
+
+  // GitHub Authentication Handlers
+  if (msg.type === 'CHECK_GITHUB_AUTH') {
+    checkGitHubAuthStatus();
+  }
+
+  if (msg.type === 'CHECK_GITHUB_AUTH_FOR_EXPORT') {
+    checkGitHubAuthForExport();
+  }
+
+  if (msg.type === 'CHECK_GITHUB_AUTH_FOR_MODAL') {
+    checkGitHubAuthForModal();
+  }
+
+  if (msg.type === 'AUTHENTICATE_GITHUB') {
+    authenticateWithGitHub(msg.payload.pat);
+  }
+
+  if (msg.type === 'DISCONNECT_GITHUB') {
+    disconnectGitHub();
+  }
+
+  // GitHub API Handlers for Export Modal
+  if (msg.type === 'GET_GITHUB_REPOS') {
+    getGitHubRepositories();
+  }
+
+  if (msg.type === 'GET_GITHUB_BRANCHES') {
+    getGitHubBranches(msg.payload.repo);
+  }
+
+  if (msg.type === 'GET_GITHUB_FILES') {
+    getGitHubFiles(msg.payload.repo, msg.payload.branch);
+  }
+
+  if (msg.type === 'EXPORT_TO_GITHUB') {
+    exportToGitHub(msg.payload);
+  }
 };
 
 // Send an initial plugin-info message when the plugin starts
@@ -1700,32 +1738,802 @@ function sanitizeForDTCG(name) {
 
 /**
  * Maps Figma variable types to DTCG types
- * @param {string} figmaResolvedType - Figma variable type (e.g., COLOR, FLOAT)
+ * @param {string} figmaResolvedType - The resolved type from Figma
  * @returns {string} - DTCG type
  */
 function mapFigmaTypeToDTCG(figmaResolvedType) {
-  if (!figmaResolvedType) return 'number'; // Default for safety
+  const typeMap = {
+    'COLOR': 'color',
+    'FLOAT': 'dimension',
+    'STRING': 'string',
+    'BOOLEAN': 'string' // Map to string since DTCG doesn't have native boolean
+  };
+  
+  return typeMap[figmaResolvedType] || 'string';
+}
 
-  // Handle COLOR type
-  if (figmaResolvedType === 'COLOR') {
-    return 'color';
+// GitHub Authentication Functions
+
+/**
+ * Check current GitHub authentication status
+ */
+async function checkGitHubAuthStatus() {
+  try {
+    const storedPat = await figma.clientStorage.getAsync('githubPat');
+    const storedUsername = await figma.clientStorage.getAsync('githubUsername');
+    
+    if (storedPat) {
+      // Verify the token is still valid
+      const isValid = await validateGitHubPAT(storedPat);
+      if (isValid) {
+        figma.ui.postMessage({
+          type: 'GITHUB_AUTH_STATUS',
+          payload: {
+            isAuthenticated: true,
+            username: storedUsername || 'Unknown'
+          }
+        });
+      } else {
+        // Token is invalid, clear stored data
+        await figma.clientStorage.setAsync('githubPat', null);
+        await figma.clientStorage.setAsync('githubUsername', null);
+        figma.ui.postMessage({
+          type: 'GITHUB_AUTH_STATUS',
+          payload: {
+            isAuthenticated: false
+          }
+        });
+      }
+    } else {
+      figma.ui.postMessage({
+        type: 'GITHUB_AUTH_STATUS',
+        payload: {
+          isAuthenticated: false
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error checking GitHub auth status:', error);
+    figma.ui.postMessage({
+      type: 'GITHUB_AUTH_STATUS',
+      payload: {
+        isAuthenticated: false
+      }
+    });
+  }
+}
+
+/**
+ * Check GitHub authentication status for export
+ */
+async function checkGitHubAuthForExport() {
+  try {
+    const storedPat = await figma.clientStorage.getAsync('githubPat');
+    
+    if (storedPat) {
+      // Verify the token is still valid
+      const isValid = await validateGitHubPAT(storedPat);
+      if (isValid) {
+        // User is authenticated, proceed with export flow (to be implemented)
+        figma.ui.postMessage({
+          type: 'GITHUB_EXPORT_READY',
+          payload: {
+            message: 'Ready to export to GitHub'
+          }
+        });
+      } else {
+        // Token is invalid, require re-authentication
+        await figma.clientStorage.setAsync('githubPat', null);
+        await figma.clientStorage.setAsync('githubUsername', null);
+        figma.ui.postMessage({
+          type: 'GITHUB_AUTH_REQUIRED_FOR_EXPORT',
+          payload: {
+            message: 'GitHub authentication required'
+          }
+        });
+      }
+    } else {
+      // No token stored, require authentication
+      figma.ui.postMessage({
+        type: 'GITHUB_AUTH_REQUIRED_FOR_EXPORT',
+        payload: {
+          message: 'GitHub authentication required'
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error checking GitHub auth for export:', error);
+    figma.ui.postMessage({
+      type: 'GITHUB_AUTH_REQUIRED_FOR_EXPORT',
+      payload: {
+        message: 'GitHub authentication required'
+      }
+    });
+  }
+}
+
+/**
+ * Authenticate with GitHub using Personal Access Token
+ * @param {string} pat - Personal Access Token
+ */
+async function authenticateWithGitHub(pat) {
+  try {
+    // Validate the PAT by making a request to GitHub API
+    const userInfo = await validateGitHubPAT(pat, true);
+    
+    if (userInfo) {
+      // Store the PAT and username
+      await figma.clientStorage.setAsync('githubPat', pat);
+      await figma.clientStorage.setAsync('githubUsername', userInfo.login);
+      
+      figma.ui.postMessage({
+        type: 'GITHUB_AUTH_SUCCESS',
+        payload: {
+          username: userInfo.login
+        }
+      });
+    } else {
+      figma.ui.postMessage({
+        type: 'GITHUB_AUTH_ERROR',
+        payload: {
+          error: 'Invalid GitHub Personal Access Token. Please check your token and try again.'
+        }
+      });
+    }
+  } catch (error) {
+    console.error('GitHub authentication error:', error);
+    figma.ui.postMessage({
+      type: 'GITHUB_AUTH_ERROR',
+      payload: {
+        error: error.message || 'Authentication failed. Please check your internet connection and try again.'
+      }
+    });
+  }
+}
+
+/**
+ * Disconnect from GitHub by clearing stored credentials
+ */
+async function disconnectGitHub() {
+  try {
+    await figma.clientStorage.setAsync('githubPat', null);
+    await figma.clientStorage.setAsync('githubUsername', null);
+    
+    figma.ui.postMessage({
+      type: 'GITHUB_DISCONNECTED',
+      payload: {
+        message: 'Successfully disconnected from GitHub'
+      }
+    });
+  } catch (error) {
+    console.error('Error disconnecting from GitHub:', error);
+    figma.ui.postMessage({
+      type: 'error',
+      message: 'Failed to disconnect from GitHub'
+    });
+  }
+}
+
+/**
+ * Validate GitHub Personal Access Token
+ * @param {string} pat - Personal Access Token
+ * @param {boolean} returnUserInfo - Whether to return user info or just validation status
+ * @returns {Promise<boolean|Object>} - Validation status or user info object
+ */
+async function validateGitHubPAT(pat, returnUserInfo = false) {
+  try {
+    console.log('Validating GitHub PAT, returnUserInfo:', returnUserInfo);
+    
+    const response = await fetch('https://api.github.com/user', {
+      method: 'GET',
+      headers: {
+        'Authorization': `token ${pat}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Toko-Figma-Plugin'
+      }
+    });
+
+    console.log('PAT validation response status:', response.status);
+
+    if (response.ok) {
+      if (returnUserInfo) {
+        const userInfo = await response.json();
+        console.log('PAT validation successful for user:', userInfo.login);
+        return userInfo;
+      } else {
+        console.log('PAT validation successful');
+        return true;
+      }
+    } else {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error('GitHub PAT validation failed:', response.status, errorText);
+      return false;
+    }
+  } catch (error) {
+    console.error('Network error validating GitHub PAT:', error);
+    if (returnUserInfo) {
+      return null;
+    } else {
+      return false;
+    }
+  }
+}
+
+/**
+ * Check GitHub authentication status for export modal
+ */
+async function checkGitHubAuthForModal() {
+  try {
+    const storedPat = await figma.clientStorage.getAsync('githubPat');
+    const storedUsername = await figma.clientStorage.getAsync('githubUsername');
+    
+    console.log('Checking auth for modal - PAT exists:', !!storedPat, 'Username:', storedUsername);
+    
+    if (storedPat) {
+      // Verify the token is still valid
+      const userInfo = await validateGitHubPAT(storedPat, true);
+      if (userInfo) {
+        console.log('Auth verified for user:', userInfo.login);
+        // Update stored username if needed
+        if (userInfo.login !== storedUsername) {
+          await figma.clientStorage.setAsync('githubUsername', userInfo.login);
+        }
+        
+        figma.ui.postMessage({
+          type: 'GITHUB_AUTH_SUCCESS_FOR_MODAL',
+          payload: {
+            message: 'Authentication verified',
+            username: userInfo.login
+          }
+        });
+      } else {
+        console.log('Token validation failed');
+        // Token is invalid, require re-authentication
+        await figma.clientStorage.setAsync('githubPat', null);
+        await figma.clientStorage.setAsync('githubUsername', null);
+        figma.ui.postMessage({
+          type: 'GITHUB_AUTH_REQUIRED_FOR_MODAL',
+          payload: {
+            message: 'GitHub authentication required - token invalid'
+          }
+        });
+      }
+    } else {
+      console.log('No token stored');
+      // No token stored, require authentication
+      figma.ui.postMessage({
+        type: 'GITHUB_AUTH_REQUIRED_FOR_MODAL',
+        payload: {
+          message: 'GitHub authentication required - no token'
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error checking GitHub auth for modal:', error);
+    figma.ui.postMessage({
+      type: 'GITHUB_AUTH_REQUIRED_FOR_MODAL',
+      payload: {
+        message: 'GitHub authentication required - error occurred'
+      }
+    });
+  }
+}
+
+/**
+ * Get GitHub repositories for the authenticated user
+ */
+async function getGitHubRepositories() {
+  try {
+    const storedPat = await figma.clientStorage.getAsync('githubPat');
+    const storedUsername = await figma.clientStorage.getAsync('githubUsername');
+    
+    console.log('Getting repositories with username:', storedUsername);
+    
+    if (!storedPat) {
+      console.error('No PAT found');
+      figma.ui.postMessage({
+        type: 'GITHUB_AUTH_REQUIRED_FOR_MODAL',
+        payload: {
+          message: 'GitHub authentication required'
+        }
+      });
+      return;
+    }
+
+    const response = await fetch('https://api.github.com/user/repos?type=all&sort=updated&per_page=100', {
+      method: 'GET',
+      headers: {
+        'Authorization': `token ${storedPat}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Toko-Figma-Plugin'
+      }
+    });
+
+    console.log('GitHub repos API response status:', response.status);
+
+    if (response.ok) {
+      const repos = await response.json();
+      console.log('Fetched repos count:', repos.length);
+      
+      const repoData = repos.map(repo => ({
+        name: repo.name,
+        fullName: repo.full_name,
+        private: repo.private,
+        defaultBranch: repo.default_branch
+      }));
+
+      figma.ui.postMessage({
+        type: 'GITHUB_REPOS_LOADED',
+        payload: {
+          repos: repoData
+        }
+      });
+    } else {
+      const errorText = await response.text();
+      console.error('GitHub API error:', response.status, errorText);
+      
+      const errorData = errorText ? JSON.parse(errorText) : {};
+      figma.ui.postMessage({
+        type: 'GITHUB_API_ERROR',
+        payload: {
+          error: errorData.message || `Failed to fetch repositories (${response.status})`
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching GitHub repositories:', error);
+    figma.ui.postMessage({
+      type: 'GITHUB_API_ERROR',
+      payload: {
+        error: 'Network error while fetching repositories'
+      }
+    });
+  }
+}
+
+/**
+ * Get GitHub branches for a specific repository
+ * @param {string} repoName - Repository name
+ */
+async function getGitHubBranches(repoName) {
+  try {
+    const storedPat = await figma.clientStorage.getAsync('githubPat');
+    const storedUsername = await figma.clientStorage.getAsync('githubUsername');
+    
+    if (!storedPat || !storedUsername) {
+      figma.ui.postMessage({
+        type: 'GITHUB_AUTH_REQUIRED_FOR_MODAL',
+        payload: {
+          message: 'GitHub authentication required'
+        }
+      });
+      return;
+    }
+
+    const response = await fetch(`https://api.github.com/repos/${storedUsername}/${repoName}/branches?per_page=100`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `token ${storedPat}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Toko-Figma-Plugin'
+      }
+    });
+
+    if (response.ok) {
+      const branches = await response.json();
+      const branchData = branches.map(branch => ({
+        name: branch.name,
+        sha: branch.commit.sha
+      }));
+
+      figma.ui.postMessage({
+        type: 'GITHUB_BRANCHES_LOADED',
+        payload: {
+          branches: branchData
+        }
+      });
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      figma.ui.postMessage({
+        type: 'GITHUB_API_ERROR',
+        payload: {
+          error: errorData.message || 'Failed to fetch branches'
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching GitHub branches:', error);
+    figma.ui.postMessage({
+      type: 'GITHUB_API_ERROR',
+      payload: {
+        error: 'Network error while fetching branches'
+      }
+    });
+  }
+}
+
+/**
+ * Get all files in a GitHub repository branch with full paths (supporting folders)
+ * @param {string} repoName - Repository name
+ * @param {string} branchName - Branch name
+ */
+async function getGitHubFiles(repoName, branchName) {
+  try {
+    const storedPat = await figma.clientStorage.getAsync('githubPat');
+    const storedUsername = await figma.clientStorage.getAsync('githubUsername');
+    
+    if (!storedPat || !storedUsername) {
+      figma.ui.postMessage({
+        type: 'GITHUB_AUTH_REQUIRED_FOR_MODAL',
+        payload: {
+          message: 'GitHub authentication required'
+        }
+      });
+      return;
+    }
+
+    // First, get the branch information to get the tree SHA
+    const branchResponse = await fetch(`https://api.github.com/repos/${storedUsername}/${repoName}/git/refs/heads/${branchName}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `token ${storedPat}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Toko-Figma-Plugin'
+      }
+    });
+
+    if (!branchResponse.ok) {
+      const errorData = await branchResponse.json().catch(() => ({}));
+      figma.ui.postMessage({
+        type: 'GITHUB_API_ERROR',
+        payload: {
+          error: errorData.message || 'Failed to fetch branch information'
+        }
+      });
+      return;
+    }
+
+    const branchInfo = await branchResponse.json();
+    const commitSha = branchInfo.object.sha;
+
+    // Get the commit to find the tree SHA
+    const commitResponse = await fetch(`https://api.github.com/repos/${storedUsername}/${repoName}/git/commits/${commitSha}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `token ${storedPat}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Toko-Figma-Plugin'
+      }
+    });
+
+    if (!commitResponse.ok) {
+      const errorData = await commitResponse.json().catch(() => ({}));
+      figma.ui.postMessage({
+        type: 'GITHUB_API_ERROR',
+        payload: {
+          error: errorData.message || 'Failed to fetch commit information'
+        }
+      });
+      return;
+    }
+
+    const commitInfo = await commitResponse.json();
+    const treeSha = commitInfo.tree.sha;
+
+    // Now get the entire tree recursively
+    const treeResponse = await fetch(`https://api.github.com/repos/${storedUsername}/${repoName}/git/trees/${treeSha}?recursive=1`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `token ${storedPat}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Toko-Figma-Plugin'
+      }
+    });
+
+    if (treeResponse.ok) {
+      const treeData = await treeResponse.json();
+      
+      // Filter for files only (not trees/directories) and relevant file types
+      const fileData = treeData.tree
+        .filter(item => item.type === 'blob') // blob = file, tree = directory
+        .filter(file => {
+          const fileName = file.path.toLowerCase();
+          return fileName.endsWith('.json') || 
+                 fileName.endsWith('.js') || 
+                 fileName.endsWith('.css') ||
+                 fileName.endsWith('.ts') ||
+                 fileName.endsWith('.config.js');
+        })
+        .map(file => ({
+          name: file.path, // Use full path as name for display
+          path: file.path, // Keep full path
+          sha: file.sha
+        }))
+        .sort((a, b) => a.path.localeCompare(b.path)); // Sort alphabetically by path
+
+      figma.ui.postMessage({
+        type: 'GITHUB_FILES_LOADED',
+        payload: {
+          files: fileData
+        }
+      });
+    } else {
+      const errorData = await treeResponse.json().catch(() => ({}));
+      figma.ui.postMessage({
+        type: 'GITHUB_API_ERROR',
+        payload: {
+          error: errorData.message || 'Failed to fetch repository tree'
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching GitHub files:', error);
+    figma.ui.postMessage({
+      type: 'GITHUB_API_ERROR',
+      payload: {
+        error: 'Network error while fetching files'
+      }
+    });
+  }
+}
+
+/**
+ * Export content to GitHub
+ * @param {Object} exportData - Export configuration
+ */
+async function exportToGitHub(exportData) {
+  try {
+    const storedPat = await figma.clientStorage.getAsync('githubPat');
+    const storedUsername = await figma.clientStorage.getAsync('githubUsername');
+    
+    if (!storedPat || !storedUsername) {
+      figma.ui.postMessage({
+        type: 'GITHUB_AUTH_REQUIRED_FOR_MODAL',
+        payload: {
+          message: 'GitHub authentication required'
+        }
+      });
+      return;
+    }
+
+    const { repository, branch, fileName, content, isNewRepo, isNewBranch, contentType } = exportData;
+
+    // Step 1: Create repository if needed
+    if (isNewRepo) {
+      await createGitHubRepository(repository, storedPat);
+    }
+
+    // Step 2: Create branch if needed
+    if (isNewBranch) {
+      await createGitHubBranch(repository, branch, storedPat, storedUsername);
+    }
+
+    // Step 3: Create or update file
+    await createOrUpdateGitHubFile(repository, branch, fileName, content, storedPat, storedUsername);
+
+    figma.ui.postMessage({
+      type: 'GITHUB_EXPORT_SUCCESS',
+      payload: {
+        message: `Successfully exported to ${repository}/${fileName}`
+      }
+    });
+
+  } catch (error) {
+    console.error('Error exporting to GitHub:', error);
+    figma.ui.postMessage({
+      type: 'GITHUB_EXPORT_ERROR',
+      payload: {
+        error: error.message || 'Export failed. Please try again.'
+      }
+    });
+  }
+}
+
+/**
+ * Create a new GitHub repository
+ * @param {string} repoName - Repository name
+ * @param {string} pat - Personal Access Token
+ */
+async function createGitHubRepository(repoName, pat) {
+  const response = await fetch('https://api.github.com/user/repos', {
+    method: 'POST',
+    headers: {
+      'Authorization': `token ${pat}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'Toko-Figma-Plugin',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: repoName,
+      description: 'Design tokens exported from Figma using Toko',
+      private: false,
+      auto_init: true
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to create repository');
+  }
+}
+
+/**
+ * Create a new GitHub branch
+ * @param {string} repoName - Repository name
+ * @param {string} branchName - Branch name
+ * @param {string} pat - Personal Access Token
+ * @param {string} username - GitHub username
+ */
+async function createGitHubBranch(repoName, branchName, pat, username) {
+  // First, get the default branch SHA
+  const defaultBranchResponse = await fetch(`https://api.github.com/repos/${username}/${repoName}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `token ${pat}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'Toko-Figma-Plugin'
+    }
+  });
+
+  if (!defaultBranchResponse.ok) {
+    throw new Error('Failed to get repository information');
   }
 
-  // Handle BOOLEAN type
-  if (figmaResolvedType === 'BOOLEAN') {
-    return 'string'; // DTCG doesn't have a native boolean; will be "true" or "false"
+  const repoInfo = await defaultBranchResponse.json();
+  const defaultBranch = repoInfo.default_branch;
+
+  // Get the SHA of the default branch
+  const branchResponse = await fetch(`https://api.github.com/repos/${username}/${repoName}/git/refs/heads/${defaultBranch}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `token ${pat}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'Toko-Figma-Plugin'
+    }
+  });
+
+  if (!branchResponse.ok) {
+    throw new Error('Failed to get default branch information');
   }
 
-  // Handle STRING type
-  if (figmaResolvedType === 'STRING') {
-    return 'string';
+  const branchInfo = await branchResponse.json();
+  const sha = branchInfo.object.sha;
+
+  // Create the new branch
+  const createBranchResponse = await fetch(`https://api.github.com/repos/${username}/${repoName}/git/refs`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `token ${pat}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'Toko-Figma-Plugin',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      ref: `refs/heads/${branchName}`,
+      sha: sha
+    })
+  });
+
+  if (!createBranchResponse.ok) {
+    const errorData = await createBranchResponse.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to create branch');
+  }
+}
+
+/**
+ * Custom base64 encoding function for Figma plugin environment
+ * @param {string} str - The string to encode
+ * @returns {string} - Base64 encoded string
+ */
+function base64Encode(str) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let result = '';
+  let i = 0;
+  
+  // Convert string to UTF-8 bytes
+  const utf8Bytes = [];
+  for (let j = 0; j < str.length; j++) {
+    const charCode = str.charCodeAt(j);
+    if (charCode < 0x80) {
+      utf8Bytes.push(charCode);
+    } else if (charCode < 0x800) {
+      utf8Bytes.push(0xc0 | (charCode >> 6));
+      utf8Bytes.push(0x80 | (charCode & 0x3f));
+    } else if (charCode < 0xd800 || charCode >= 0xe000) {
+      utf8Bytes.push(0xe0 | (charCode >> 12));
+      utf8Bytes.push(0x80 | ((charCode >> 6) & 0x3f));
+      utf8Bytes.push(0x80 | (charCode & 0x3f));
+    } else {
+      // Surrogate pair
+      j++;
+      const surrogate = 0x10000 + (((charCode & 0x3ff) << 10) | (str.charCodeAt(j) & 0x3ff));
+      utf8Bytes.push(0xf0 | (surrogate >> 18));
+      utf8Bytes.push(0x80 | ((surrogate >> 12) & 0x3f));
+      utf8Bytes.push(0x80 | ((surrogate >> 6) & 0x3f));
+      utf8Bytes.push(0x80 | (surrogate & 0x3f));
+    }
+  }
+  
+  // Base64 encode the UTF-8 bytes
+  while (i < utf8Bytes.length) {
+    const byte1 = utf8Bytes[i++];
+    const byte2 = i < utf8Bytes.length ? utf8Bytes[i++] : 0;
+    const byte3 = i < utf8Bytes.length ? utf8Bytes[i++] : 0;
+    
+    const bitmap = (byte1 << 16) | (byte2 << 8) | byte3;
+    
+    result += chars.charAt((bitmap >> 18) & 63);
+    result += chars.charAt((bitmap >> 12) & 63);
+    result += i - 2 < utf8Bytes.length ? chars.charAt((bitmap >> 6) & 63) : '=';
+    result += i - 1 < utf8Bytes.length ? chars.charAt(bitmap & 63) : '=';
+  }
+  
+  return result;
+}
+
+/**
+ * Create or update a file in GitHub
+ * @param {string} repoName - Repository name
+ * @param {string} branchName - Branch name
+ * @param {string} fileName - File name
+ * @param {string} content - File content
+ * @param {string} pat - Personal Access Token
+ * @param {string} username - GitHub username
+ */
+async function createOrUpdateGitHubFile(repoName, branchName, fileName, content, pat, username) {
+  const encodedContent = base64Encode(content);
+  let existingFileSha = null;
+  let commitMessage = '';
+
+  // Check if file already exists
+  try {
+    const fileResponse = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${fileName}?ref=${branchName}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `token ${pat}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Toko-Figma-Plugin'
+      }
+    });
+
+    if (fileResponse.ok) {
+      const fileData = await fileResponse.json();
+      existingFileSha = fileData.sha;
+      commitMessage = `Update ${fileName}`;
+    }
+  } catch (error) {
+    // File doesn't exist, which is fine for creation
   }
 
-  // Handle FLOAT type (Figma's representation for numbers)
-  if (figmaResolvedType === 'FLOAT') {
-    return 'number';
+  if (!existingFileSha) {
+    commitMessage = `Add ${fileName} (exported from Figma using Toko)`;
   }
 
-  // Fallback for any other unknown figmaResolvedType
-  return 'number';
+  // Create or update the file
+  const requestBody = {
+    message: commitMessage,
+    content: encodedContent,
+    branch: branchName
+  };
+  
+  // Add SHA if file exists (for updates)
+  if (existingFileSha) {
+    requestBody.sha = existingFileSha;
+  }
+
+  const updateResponse = await fetch(`https://api.github.com/repos/${username}/${repoName}/contents/${fileName}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `token ${pat}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'Toko-Figma-Plugin',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!updateResponse.ok) {
+    const errorData = await updateResponse.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to create/update file');
+  }
 }
