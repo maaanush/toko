@@ -56,6 +56,11 @@ let allFetchedVariablesPayload = {
   shared: [] // Array of shared library collections with their variables
 };
 
+// Create the main object to hold all fetched styles data
+let allFetchedStylesPayload = {
+  local: [] // Array of local styles organized by type
+};
+
 // Initialize a set to track IDs of imported library variables
 let importedLibraryVariableIds = new Set();
 
@@ -145,6 +150,11 @@ function resetPluginState() {
   allFetchedVariablesPayload = {
     local: [],
     shared: []
+  };
+  
+  // Reset the styles payload
+  allFetchedStylesPayload = {
+    local: []
   };
   
   // Clear all tracking sets and maps
@@ -427,6 +437,287 @@ async function fetchSharedCollections() {
   }
 }
 
+/**
+ * Fetches local styles from the current Figma file
+ */
+async function fetchLocalStyles() {
+  try {
+    const currentDocumentName = figma.root.name; // Get the current document's name
+    
+    console.log('Fetching local styles...');
+    
+    // Fetch all types of local styles
+    const [paintStyles, textStyles, effectStyles, gridStyles] = await Promise.all([
+      figma.getLocalPaintStylesAsync(),
+      figma.getLocalTextStylesAsync(), 
+      figma.getLocalEffectStylesAsync(),
+      figma.getLocalGridStylesAsync()
+    ]);
+    
+    console.log('Found styles:', {
+      paint: paintStyles.length,
+      text: textStyles.length,
+      effect: effectStyles.length,
+      grid: gridStyles.length
+    });
+    
+    // Create the structure for local styles
+    const localStylesData = {
+      documentName: currentDocumentName,
+      paint: [],
+      text: [],
+      effect: [],
+      grid: []
+    };
+    
+    // Process paint styles
+    paintStyles.forEach(style => {
+      try {
+        // For paint styles, we need to check each individual paint for bound variables
+        const processedPaints = style.paints.map(paint => {
+          if (paint.type === 'SOLID') {
+            return {
+              type: paint.type,
+              color: paint.color,
+              opacity: paint.opacity,
+              boundVariables: paint.boundVariables || {}
+            };
+          }
+          return paint; // Return other paint types as-is
+        });
+
+        localStylesData.paint.push({
+          id: style.id,
+          name: style.name,
+          description: style.description,
+          type: style.type,
+          paints: processedPaints, // Use the processed paints with boundVariables
+          remote: style.remote,
+          key: style.key
+        });
+      } catch (error) {
+        console.warn(`Failed to process paint style ${style.id}:`, error);
+      }
+    });
+    
+    // Process text styles
+    textStyles.forEach(style => {
+      try {
+        localStylesData.text.push({
+          id: style.id,
+          name: style.name,
+          description: style.description,
+          type: style.type,
+          fontName: style.fontName,
+          fontSize: style.fontSize,
+          fontWeight: style.fontWeight,
+          lineHeight: style.lineHeight,
+          letterSpacing: style.letterSpacing,
+          fills: style.fills,
+          textCase: style.textCase,
+          textDecoration: style.textDecoration,
+          remote: style.remote,
+          key: style.key,
+          boundVariables: style.boundVariables || {} // Capture bound variables for the whole text style
+        });
+      } catch (error) {
+        console.warn(`Failed to process text style ${style.id}:`, error);
+      }
+    });
+    
+    // Process effect styles
+    effectStyles.forEach(style => {
+      try {
+         // For effect styles, we also need to check each individual effect
+         const processedEffects = style.effects.map(effect => {
+          return Object.assign({}, effect, { boundVariables: effect.boundVariables || {} });
+        });
+
+        localStylesData.effect.push({
+          id: style.id,
+          name: style.name,
+          description: style.description,
+          type: style.type,
+          effects: processedEffects, // Use processed effects with boundVariables
+          remote: style.remote,
+          key: style.key
+        });
+      } catch (error) {
+        console.warn(`Failed to process effect style ${style.id}:`, error);
+      }
+    });
+    
+    // Process grid styles
+    gridStyles.forEach(style => {
+      try {
+        const processedGrids = style.layoutGrids.map(grid => {
+          return Object.assign({}, grid, { boundVariables: grid.boundVariables || {} });
+        });
+
+        localStylesData.grid.push({
+          id: style.id,
+          name: style.name,
+          description: style.description,
+          type: style.type,
+          layoutGrids: processedGrids, // Use processed grids with boundVariables
+          remote: style.remote,
+          key: style.key
+        });
+      } catch (error) {
+        console.warn(`Failed to process grid style ${style.id}:`, error);
+      }
+    });
+    
+    // Add this styles collection to the local array
+    allFetchedStylesPayload.local.push(localStylesData);
+    
+    console.log('Successfully fetched local styles:', allFetchedStylesPayload.local);
+    
+  } catch (error) {
+    console.error('Error fetching local styles:', error);
+    
+    // Add error to payload
+    if (!allFetchedStylesPayload.errorLog) {
+      allFetchedStylesPayload.errorLog = {};
+    }
+    
+    allFetchedStylesPayload.errorLog.localStylesError = {
+      phase: 'fetchLocalStyles',
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    };
+  }
+}
+
+/**
+ * Main orchestration function to fetch and process all styles
+ */
+async function fetchAndLogAllStyles() {
+  try {
+    // Reset styles state to ensure fresh data
+    allFetchedStylesPayload = {
+      local: []
+    };
+    
+    console.log('Starting styles fetch process...');
+    
+    // Fetch local styles
+    console.log('Fetching local styles...');
+    await fetchLocalStyles();
+    
+    // Log summary of what was fetched
+    const totalStyles = allFetchedStylesPayload.local.reduce((sum, styleGroup) => {
+      return sum + (styleGroup.paint && styleGroup.paint.length ? styleGroup.paint.length : 0) + 
+                  (styleGroup.text && styleGroup.text.length ? styleGroup.text.length : 0) + 
+                  (styleGroup.effect && styleGroup.effect.length ? styleGroup.effect.length : 0) + 
+                  (styleGroup.grid && styleGroup.grid.length ? styleGroup.grid.length : 0);
+    }, 0);
+    
+    console.log(`Styles fetch complete: ${totalStyles} total styles`);
+    
+    // Log the final fetched payload
+    console.log('Final fetched styles payload:', allFetchedStylesPayload);
+    
+    console.log('Styles processing completed successfully');
+    
+    return allFetchedStylesPayload;
+  } catch (error) {
+    console.error('Error in fetchAndLogAllStyles:', error);
+    
+    // Add error to payload if it exists
+    if (!allFetchedStylesPayload.errorLog) {
+      allFetchedStylesPayload.errorLog = {};
+    }
+    
+    allFetchedStylesPayload.errorLog.orchestrationError = {
+      phase: 'fetchAndLogAllStyles',
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    };
+    
+    return allFetchedStylesPayload;
+  }
+}
+
+/**
+ * Creates a nested object structure from a flat list of styles based on their names.
+ * Slashes in names are used as delimiters for nesting, creating a tree-like object.
+ * This is useful for UI renderings like a side tree.
+ * @param {Object} stylesPayload - The payload from `fetchAndLogAllStyles` containing flat lists of styles.
+ * @returns {Object} - An object with styles organized in a nested structure by category (paint, text, etc.).
+ */
+function createNestedStylesPayload(stylesPayload) {
+  const nestedStyles = {};
+
+  const processStyles = (styles, category) => {
+    if (!styles || styles.length === 0) return;
+
+    nestedStyles[category] = nestedStyles[category] || {};
+
+    styles.forEach(style => {
+      // Trim and filter out empty segments that might result from leading/trailing/double slashes
+      const pathSegments = style.name.split('/').map(s => s.trim()).filter(Boolean);
+      
+      if (pathSegments.length === 0) return;
+
+      let currentLevel = nestedStyles[category];
+
+      pathSegments.forEach((segment, index) => {
+        if (index === pathSegments.length - 1) {
+          // This is the leaf node. It holds the style properties.
+          // Check for conflict: if a group with this name already exists.
+          if (currentLevel[segment] && typeof currentLevel[segment] === 'object' && !currentLevel[segment].id) {
+            // It's a group. Add the style object as a special property.
+            // This handles cases where a style name is a prefix of another (e.g., "Button" and "Button/Primary").
+            currentLevel[segment]._style = style;
+          } else {
+            currentLevel[segment] = style;
+          }
+        } else {
+          // This is a path segment (a group).
+          // Check for conflict: if a style with this name already exists.
+          if (currentLevel[segment] && currentLevel[segment].id) {
+            // It's a style. Convert it into a group and store the style under '_style'.
+            const existingStyle = currentLevel[segment];
+            currentLevel[segment] = {
+              _style: existingStyle
+            };
+          } else if (!currentLevel[segment]) {
+            // No conflict, just create the group.
+            currentLevel[segment] = {};
+          }
+          // Move to the next level in the hierarchy.
+          currentLevel = currentLevel[segment];
+        }
+      });
+    });
+  };
+
+  if (stylesPayload && stylesPayload.local) {
+    stylesPayload.local.forEach(styleGroup => {
+      processStyles(styleGroup.paint, 'paint');
+      processStyles(styleGroup.text, 'text');
+      processStyles(styleGroup.effect, 'effect');
+      processStyles(styleGroup.grid, 'grid');
+    });
+  }
+
+  // Check if we only have one category with content
+  const categoriesWithContent = Object.keys(nestedStyles).filter(key => 
+    nestedStyles[key] && Object.keys(nestedStyles[key]).length > 0
+  );
+
+  // If only one category has content, return its content directly (flatten)
+  if (categoriesWithContent.length === 1) {
+    return nestedStyles[categoriesWithContent[0]];
+  }
+
+  // If multiple categories or no content, return the full structure
+  return nestedStyles;
+}
+
 // Message handler for UI events
 figma.ui.onmessage = msg => {
   // Simple message handling - log events but don't take complex actions yet
@@ -536,6 +827,27 @@ figma.ui.onmessage = msg => {
     }
   }
 
+  // Handle request to generate styles payload
+  if (msg.type === 'generate-styles') {
+    (async () => {
+      try {
+        const stylesData = await fetchAndLogAllStyles();
+        const nestedStylesData = createNestedStylesPayload(stylesData);
+        console.log('Nested styles payload:', nestedStylesData);
+        figma.ui.postMessage({
+          type: 'stylesPayload', 
+          payload: nestedStylesData
+        });
+      } catch (error) {
+        // Send error message to UI
+        figma.ui.postMessage({
+          type: 'error',
+          message: `Failed to fetch styles: ${error.message}`
+        });
+      }
+    })();
+  }
+
   // GitHub Authentication Handlers
   if (msg.type === 'CHECK_GITHUB_AUTH') {
     checkGitHubAuthStatus();
@@ -579,13 +891,14 @@ figma.ui.onmessage = msg => {
 figma.ui.postMessage({
   type: 'plugin-info',
   payload: {
-    message: 'Plugin loaded. Fetching variables...'
+    message: 'Plugin loaded. Fetching variables and styles...'
   }
 });
 
 // Automatically fetch and send data when the plugin UI loads
 (async () => {
   try {
+    // Fetch variables
     const data = await fetchAndLogAllVariables();
     // Use createSimplifiedDTCGPayload with the raw data part of the fetched result
     const simplifiedPayload = await createSimplifiedDTCGPayload(data.raw || data); // data.raw for compatibility, or data if raw is not present
@@ -597,10 +910,20 @@ figma.ui.postMessage({
       type: 'dtcgPayload',
       payload: simplifiedPayload
     });
+
+    // Fetch styles
+    const stylesData = await fetchAndLogAllStyles();
+    const nestedStylesData = createNestedStylesPayload(stylesData);
+    console.log('Initial nested styles payload:', nestedStylesData);
+    figma.ui.postMessage({
+      type: 'stylesPayload', 
+      payload: nestedStylesData
+    });
+
   } catch (error) {
     figma.ui.postMessage({
       type: 'error',
-      message: `Failed to fetch or process variables on load: ${error.message}`
+      message: `Failed to fetch or process data on load: ${error.message}`
     });
   }
 })();
@@ -805,8 +1128,8 @@ async function fetchAndLogAllVariables() {
     await fetchSharedCollections();
     
     // Log summary of what was fetched
-    const localCount = allFetchedVariablesPayload.local.reduce((sum, collection) => sum + ((collection.variables && collection.variables.length) || 0), 0);
-    const sharedCount = allFetchedVariablesPayload.shared.reduce((sum, collection) => sum + ((collection.variables && collection.variables.length) || 0), 0);
+    const localCount = allFetchedVariablesPayload.local.reduce((sum, collection) => sum + (collection.variables && collection.variables.length ? collection.variables.length : 0), 0);
+    const sharedCount = allFetchedVariablesPayload.shared.reduce((sum, collection) => sum + (collection.variables && collection.variables.length ? collection.variables.length : 0), 0);
     console.log(`Fetch complete: ${localCount} local variables, ${sharedCount} shared variables`);
     
     // Log the final fetched payload before DTCG conversion
@@ -1680,9 +2003,9 @@ async function createSimplifiedDTCGPayload(figmaData) {
   if (unresolvedAliaseIdsSuspectedMissingSource.size > 0) {
     // Gather statistics for better debugging
     const totalLocalVariables = figmaData.local ? 
-      figmaData.local.reduce((sum, collection) => sum + ((collection.variables && collection.variables.length) || 0), 0) : 0;
+      figmaData.local.reduce((sum, collection) => sum + (collection.variables && collection.variables.length ? collection.variables.length : 0), 0) : 0;
     const totalSharedVariables = figmaData.shared ? 
-      figmaData.shared.reduce((sum, collection) => sum + ((collection.variables && collection.variables.length) || 0), 0) : 0;
+      figmaData.shared.reduce((sum, collection) => sum + (collection.variables && collection.variables.length ? collection.variables.length : 0), 0) : 0;
     const totalResolvedVariables = variableIdToPathMap.size;
     
     console.warn('Variable resolution summary:', {

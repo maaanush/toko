@@ -678,10 +678,54 @@
         <!-- Styles View -->
         <div class="tab-content" id="styles-view">
           <div id="tree-area">
-            Tree Area (Styles)
+            <div id="styles-tree">
+              <div class="spinner"></div>
+            </div>
           </div>
           <div id="output-area">
-            Output Area (Styles)
+            <!-- Output Area Header with tabs -->
+            <div id="output-area-header">
+              <div class="tab-button-group"> <!-- For JSON, CSS, Tailwind tabs -->
+                <button class="tab-button output-tab-button active" data-target="json-code-content">JSON</button>
+                <button class="tab-button output-tab-button" data-target="js-code-content">Js</button>
+                <button class="tab-button output-tab-button" data-target="css-code-content">CSS</button>
+                <button class="tab-button output-tab-button" data-target="tailwind-code-content">Tailwind</button>
+              </div>
+              <div class="action-button-group"> <!-- For Download and Copy buttons -->
+                <button class="tab-button" id="export-github-btn">Export to Github</button>
+                <button class="tab-button" id="download-code-btn">Download code</button>
+                <button class="tab-button" id="copy-code-btn">Copy to clipboard</button>
+              </div>
+            </div>
+
+            <!-- Add the warning banner here, between header and code output -->
+            <div id="global-warning-banner" class="warning-banner">
+              <p id="global-warning-message">Some variable aliases couldn't be resolved due to missing libraries — please enable all required Figma libraries and restart the plugin.</p>
+              <button class="close-btn" onclick="document.getElementById('global-warning-banner').style.display = 'none';">&times;</button>
+            </div>
+
+            <!-- Output Area Code (scrollable content) -->
+            <div id="output-area-code">
+              <!-- JSON Content Pane -->
+              <div id="json-code-content" class="output-code-content active">
+                <!-- Remove the warning banner from here -->
+                
+                <p id="json-initial-message" style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+                <pre class="json-viewer" style="display: none;"></pre> <!-- JSON code will go here -->
+              </div>
+              <!-- Js Content Pane (Placeholder) -->
+              <div id="js-code-content" class="output-code-content">
+                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+              </div>
+              <!-- CSS Content Pane (Placeholder) -->
+              <div id="css-code-content" class="output-code-content">
+                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+              </div>
+              <!-- Tailwind Content Pane (Placeholder) -->
+              <div id="tailwind-code-content" class="output-code-content">
+                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -929,6 +973,9 @@
           // console.log("Received dtcgPayload:", msg.payload); // Removed logging
           originalDtcgPayload = msg.payload; // Store the full payload
           renderCheckboxTree(msg.payload);
+        } else if (msg.type === 'stylesPayload') {
+          console.log("Received stylesPayload:", msg.payload);
+          renderStylesCheckboxTree(msg.payload);
         } else if (msg.type === 'jsCodePreview') {
           // console.log("Received jsCodePreview:", msg.payload); // Removed logging
           updateJSView(msg.payload);
@@ -1019,6 +1066,151 @@
       
       // Initialize JSON view with empty object to show the "select items" message
       updateJsonView({});
+    }
+
+    // Function to render the checkbox tree for styles from nested styles payload
+    function renderStylesCheckboxTree(payload) {
+      const treeContainer = document.getElementById('styles-tree');
+      treeContainer.innerHTML = ''; // Clear existing content
+      
+      // Create the root UL element for the tree
+      const rootUl = document.createElement('ul');
+      rootUl.className = 'checkbox-tree';
+      
+      // Handle empty payload
+      if (!payload || Object.keys(payload).length === 0) {
+        treeContainer.innerHTML = `
+          <div style="padding: 10px;">
+            No styles found. Please ensure your Figma file contains styles.
+          </div>
+        `;
+        return;
+      }
+      
+      // Generate tree structure recursively
+      generateStylesTreeNodes(payload, rootUl);
+      
+      // Append the tree to the container
+      treeContainer.appendChild(rootUl);
+      
+      // Initialize JSON view with empty object to show the "select items" message
+      updateJsonView({});
+    }
+    
+    // Recursive function to generate styles tree nodes
+    function generateStylesTreeNodes(data, parentElement, path = []) {
+      // Process each key-value pair in the current object
+      for (const key in data) {
+        const value = data[key];
+        const currentPath = [...path, key];
+        
+        // Create list item
+        const li = document.createElement('li');
+        li.setAttribute('data-path', currentPath.join('.'));
+        
+        // Create checkbox item wrapper
+        const checkboxItem = document.createElement('div');
+        checkboxItem.className = 'checkbox-item';
+        
+        // Create checkbox label container
+        const checkboxLabelContainer = document.createElement('div');
+        checkboxLabelContainer.className = 'checkbox-label-container';
+        
+        // Create checkbox
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `checkbox-${currentPath.join('-')}`;
+        checkbox.setAttribute('data-path', currentPath.join('.'));
+        
+        // Create label
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        label.htmlFor = checkbox.id;
+        label.textContent = key;
+        
+        // Add title for tooltip on hover (include full path for context)
+        label.title = currentPath.join(' > ');
+        
+        // Add checkbox and label to container
+        checkboxLabelContainer.appendChild(checkbox);
+        checkboxLabelContainer.appendChild(label);
+        
+        // Add container to item wrapper
+        checkboxItem.appendChild(checkboxLabelContainer);
+        
+        // Determine if this is a style or a group
+        const isStyle = value && typeof value === 'object' && value.id; // Styles have an id property
+        const isGroup = value && typeof value === 'object' && !isStyle && key !== '_style';
+        
+        if (isGroup) {
+          // This is a branch node with children
+          
+          // Create chevron for group
+          const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          chevron.setAttribute('width', '12');
+          chevron.setAttribute('height', '12');
+          chevron.setAttribute('viewBox', '0 0 12 12');
+          chevron.setAttribute('fill', 'none');
+          chevron.classList.add('chevron-icon');
+          
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', 'M3 4.5L6 7.5L9 4.5');
+          path.setAttribute('stroke', 'white');
+          path.setAttribute('stroke-opacity', '0.8');
+          path.setAttribute('stroke-linecap', 'round');
+          path.setAttribute('stroke-linejoin', 'round');
+          
+          chevron.appendChild(path);
+          checkboxItem.appendChild(chevron);
+          
+          // Create child list
+          const ul = document.createElement('ul');
+          li.appendChild(checkboxItem);
+          li.appendChild(ul);
+          
+          // Recursively generate children
+          generateStylesTreeNodes(value, ul, currentPath);
+          
+          // Setup event listener for this checkbox
+          checkbox.addEventListener('change', function(event) {
+            handleCheckboxChange(event.target);
+          });
+          
+          // Add click event for expanding/collapsing
+          checkboxItem.addEventListener('click', function(e) {
+            // Prevent this from triggering when clicking the checkbox directly
+            if (e.target !== checkbox) {
+              e.preventDefault();
+              li.classList.toggle('expanded');
+              e.stopPropagation();
+            }
+          });
+        } else {
+          // This is a leaf node (style)
+          li.appendChild(checkboxItem);
+          
+          // Setup event listener for this checkbox
+          checkbox.addEventListener('change', function(event) {
+            handleCheckboxChange(event.target);
+          });
+          
+          // Add click event for toggling checkbox on leaf nodes
+          checkboxItem.addEventListener('click', function(e) {
+            // Prevent this from triggering when clicking the checkbox directly
+            if (e.target !== checkbox) {
+              e.preventDefault();
+              checkbox.checked = !checkbox.checked;
+              // Trigger the change event manually
+              const changeEvent = new Event('change', { bubbles: true });
+              checkbox.dispatchEvent(changeEvent);
+              e.stopPropagation();
+            }
+          });
+        }
+        
+        // Append this list item to the parent element
+        parentElement.appendChild(li);
+      }
     }
     
     // Recursive function to generate tree nodes
