@@ -685,16 +685,14 @@
           <div id="output-area">
             <!-- Output Area Header with tabs -->
             <div id="output-area-header">
-              <div class="tab-button-group"> <!-- For JSON, CSS, Tailwind tabs -->
-                <button class="tab-button output-tab-button active" data-target="json-code-content">JSON</button>
-                <button class="tab-button output-tab-button" data-target="js-code-content">Js</button>
-                <button class="tab-button output-tab-button" data-target="css-code-content">CSS</button>
-                <button class="tab-button output-tab-button" data-target="tailwind-code-content">Tailwind</button>
+              <div class="tab-button-group"> <!-- For JS and CSS tabs only -->
+                <button class="tab-button output-tab-button active" data-target="styles-js-code-content">JS</button>
+                <button class="tab-button output-tab-button" data-target="styles-css-code-content">CSS</button>
               </div>
               <div class="action-button-group"> <!-- For Download and Copy buttons -->
-                <button class="tab-button" id="export-github-btn">Export to Github</button>
-                <button class="tab-button" id="download-code-btn">Download code</button>
-                <button class="tab-button" id="copy-code-btn">Copy to clipboard</button>
+                <button class="tab-button" id="styles-export-github-btn">Export to Github</button>
+                <button class="tab-button" id="styles-download-code-btn">Download code</button>
+                <button class="tab-button" id="styles-copy-code-btn">Copy to clipboard</button>
               </div>
             </div>
 
@@ -706,24 +704,14 @@
 
             <!-- Output Area Code (scrollable content) -->
             <div id="output-area-code">
-              <!-- JSON Content Pane -->
-              <div id="json-code-content" class="output-code-content active">
-                <!-- Remove the warning banner from here -->
-                
-                <p id="json-initial-message" style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
-                <pre class="json-viewer" style="display: none;"></pre> <!-- JSON code will go here -->
+              <!-- Styles JS Content Pane -->
+              <div id="styles-js-code-content" class="output-code-content active">
+                <p id="styles-js-initial-message" style="margin: 0;">Select a style in the tree to view details.</p>
+                <pre class="json-viewer" style="display: none;"></pre> <!-- JS code will go here -->
               </div>
-              <!-- Js Content Pane (Placeholder) -->
-              <div id="js-code-content" class="output-code-content">
-                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
-              </div>
-              <!-- CSS Content Pane (Placeholder) -->
-              <div id="css-code-content" class="output-code-content">
-                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
-              </div>
-              <!-- Tailwind Content Pane (Placeholder) -->
-              <div id="tailwind-code-content" class="output-code-content">
-                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+              <!-- Styles CSS Content Pane -->
+              <div id="styles-css-code-content" class="output-code-content">
+                <p style="margin: 0;">Select a style in the tree to view details.</p>
               </div>
             </div>
           </div>
@@ -905,6 +893,8 @@
   <script>
     // Store the original DTCG payload
     let originalDtcgPayload = null;
+    // Store the original styles payload
+    let originalStylesPayload = null;
     
     // Document ready event
     document.addEventListener('DOMContentLoaded', function () {
@@ -975,6 +965,8 @@
           renderCheckboxTree(msg.payload);
         } else if (msg.type === 'stylesPayload') {
           console.log("Received stylesPayload:", msg.payload);
+          // Store the original styles payload
+          originalStylesPayload = msg.payload;
           renderStylesCheckboxTree(msg.payload);
         } else if (msg.type === 'jsCodePreview') {
           // console.log("Received jsCodePreview:", msg.payload); // Removed logging
@@ -985,6 +977,12 @@
         } else if (msg.type === 'tailwindCodePreview') {
           // console.log("Received tailwindCodePreview:", msg.payload); // Removed logging
           updateTailwindView(msg.payload);
+        } else if (msg.type === 'stylesJsCodePreview') {
+          // Handle styles JS code preview
+          updateStylesJSView(msg.payload);
+        } else if (msg.type === 'stylesCssCodePreview') {
+          // Handle styles CSS code preview
+          updateStylesCSSView(msg.payload);
         } else if (msg.type === 'error') {
           console.error("Error from plugin:", msg.message);
           // Display error in UI if needed
@@ -1337,46 +1335,72 @@
       // Update parent states
       updateParentStates(checkbox);
       
-      // Generate filtered DTCG payload based on current checkbox selections
-      const filteredDtcg = generateFilteredDtcgPayload();
+      // Determine which view we're in by checking the closest tab content
+      const stylesView = checkbox.closest('#styles-view');
+      const variablesView = checkbox.closest('#variables-view');
       
-      // Update the JSON view with the filtered payload
-      updateJsonView(filteredDtcg);
-      
-      // If JS tab is active, also update the JS view
-      const jsTab = document.querySelector('[data-target="js-code-content"]');
-      if (jsTab && jsTab.classList.contains('active')) {
-        // Request JS code generation with the filtered payload
-        parent.postMessage({ 
-          pluginMessage: { 
-            type: 'request-js-code',
-            payload: filteredDtcg
-          } 
-        }, '*');
-      }
-      
-      // If CSS tab is active, also update the CSS view
-      const cssTab = document.querySelector('[data-target="css-code-content"]');
-      if (cssTab && cssTab.classList.contains('active')) {
-        // Request CSS code generation with the filtered payload
-        parent.postMessage({ 
-          pluginMessage: { 
-            type: 'request-css-code',
-            payload: filteredDtcg
-          } 
-        }, '*');
-      }
-      
-      // If Tailwind tab is active, also update the Tailwind view
-      const tailwindTab = document.querySelector('[data-target="tailwind-code-content"]');
-      if (tailwindTab && tailwindTab.classList.contains('active')) {
-        // Request Tailwind code generation with the filtered payload
-        parent.postMessage({ 
-          pluginMessage: { 
-            type: 'request-tailwind-code',
-            payload: filteredDtcg
-          } 
-        }, '*');
+      if (variablesView) {
+        // Handle variables view
+        const filteredDtcg = generateFilteredDtcgPayload();
+        updateJsonView(filteredDtcg);
+        
+        // If JS tab is active, also update the JS view
+        const jsTab = document.querySelector('[data-target="js-code-content"]');
+        if (jsTab && jsTab.classList.contains('active')) {
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'request-js-code',
+              payload: filteredDtcg
+            } 
+          }, '*');
+        }
+        
+        // If CSS tab is active, also update the CSS view
+        const cssTab = document.querySelector('[data-target="css-code-content"]');
+        if (cssTab && cssTab.classList.contains('active')) {
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'request-css-code',
+              payload: filteredDtcg
+            } 
+          }, '*');
+        }
+        
+        // If Tailwind tab is active, also update the Tailwind view
+        const tailwindTab = document.querySelector('[data-target="tailwind-code-content"]');
+        if (tailwindTab && tailwindTab.classList.contains('active')) {
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'request-tailwind-code',
+              payload: filteredDtcg
+            } 
+          }, '*');
+        }
+      } else if (stylesView) {
+        // Handle styles view
+        const filteredStyles = generateFilteredStylesPayload();
+        
+        // If Styles JS tab is active, update the JS view
+        const stylesJsTab = stylesView.querySelector('[data-target="styles-js-code-content"]');
+        if (stylesJsTab && stylesJsTab.classList.contains('active')) {
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'request-styles-js-code',
+              payload: filteredStyles
+            } 
+          }, '*');
+        }
+        
+        // If Styles CSS tab is active, update the CSS view
+        const stylesCssTab = stylesView.querySelector('[data-target="styles-css-code-content"]');
+        if (stylesCssTab && stylesCssTab.classList.contains('active')) {
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'request-styles-css-code',
+              payload: filteredStyles
+            } 
+          }, '*');
+        }
       }
     }
     
@@ -1527,76 +1551,65 @@
     
     // Setup tabs for the output area
     function setupOutputAreaTabs() {
-      const outputTabButtons = document.querySelectorAll('#output-area-header .tab-button-group .tab-button');
-      const outputTabContents = document.querySelectorAll('#output-area-code .output-code-content');
+      // Function to setup tabs for a specific view
+      function setupTabsForView(viewId) {
+        const viewElement = document.getElementById(viewId);
+        if (!viewElement) return;
+        
+        const outputTabButtons = viewElement.querySelectorAll('#output-area-header .tab-button-group .tab-button');
+        const outputTabContents = viewElement.querySelectorAll('#output-area-code .output-code-content');
 
-      outputTabButtons.forEach(button => {
-        // Use passive option for touch events to improve scrolling performance
-        button.addEventListener('touchstart', () => {
-          // Deactivate all output tabs and hide all output content
-          outputTabButtons.forEach(btn => btn.classList.remove('active'));
-          outputTabContents.forEach(content => content.classList.remove('active'));
+        outputTabButtons.forEach(button => {
+          // Use passive option for touch events to improve scrolling performance
+          button.addEventListener('touchstart', () => {
+            handleTabSwitch(button, outputTabButtons, outputTabContents, viewId);
+          }, { passive: true });
 
-          // Activate the clicked button
-          button.classList.add('active');
-
-          // Show the target content
-          const targetId = button.getAttribute('data-target');
-          const targetContent = document.getElementById(targetId);
-          if (targetContent) {
-            targetContent.classList.add('active');
-          }
-          
-          // Handle JS tab specific logic
-          if (targetId === 'js-code-content') {
-            handleJSTabActivation();
-          }
-          
-          // Handle CSS tab specific logic
-          if (targetId === 'css-code-content') {
-            handleCSSTabActivation();
-          }
-          
-          // Handle Tailwind tab specific logic
-          if (targetId === 'tailwind-code-content') {
-            handleTailwindTabActivation();
-          }
-        }, { passive: true });
-
-        button.addEventListener('click', () => {
-          // Deactivate all output tabs and hide all output content
-          outputTabButtons.forEach(btn => btn.classList.remove('active'));
-          outputTabContents.forEach(content => content.classList.remove('active'));
-
-          // Activate the clicked button
-          button.classList.add('active');
-
-          // Show the target content
-          const targetId = button.getAttribute('data-target');
-          const targetContent = document.getElementById(targetId);
-          if (targetContent) {
-            targetContent.classList.add('active');
-          }
-          
-          // Handle JS tab specific logic
-          if (targetId === 'js-code-content') {
-            handleJSTabActivation();
-          }
-          
-          // Handle CSS tab specific logic
-          if (targetId === 'css-code-content') {
-            handleCSSTabActivation();
-          }
-          
-          // Handle Tailwind tab specific logic
-          if (targetId === 'tailwind-code-content') {
-            handleTailwindTabActivation();
-          }
+          button.addEventListener('click', () => {
+            handleTabSwitch(button, outputTabButtons, outputTabContents, viewId);
+          });
         });
-      });
+      }
+      
+      // Function to handle tab switching within a specific view
+      function handleTabSwitch(clickedButton, tabButtons, tabContents, viewId) {
+        // Deactivate all tabs and hide all content within this view
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        tabContents.forEach(content => content.classList.remove('active'));
 
-      // Removing unused event listeners for action buttons that are placeholder only
-      // These were causing console warnings without providing functionality
+        // Activate the clicked button
+        clickedButton.classList.add('active');
+
+        // Show the target content
+        const targetId = clickedButton.getAttribute('data-target');
+        const targetContent = document.getElementById(targetId);
+        if (targetContent) {
+          targetContent.classList.add('active');
+        }
+        
+        // Handle specific tab logic based on view and target
+        if (viewId === 'variables-view') {
+          // Variables view tab logic
+          if (targetId === 'js-code-content') {
+            handleJSTabActivation();
+          } else if (targetId === 'css-code-content') {
+            handleCSSTabActivation();
+          } else if (targetId === 'tailwind-code-content') {
+            handleTailwindTabActivation();
+          }
+        } else if (viewId === 'styles-view') {
+          // Styles view tab logic
+          if (targetId === 'styles-js-code-content') {
+            handleStylesJSTabActivation();
+          } else if (targetId === 'styles-css-code-content') {
+            handleStylesCSSTabActivation();
+          }
+        }
+      }
+      
+      // Setup tabs for both views
+      setupTabsForView('variables-view');
+      setupTabsForView('styles-view');
     }
     
     // Handle JS tab activation
@@ -1637,6 +1650,34 @@
         pluginMessage: { 
           type: 'request-tailwind-code',
           payload: filteredDtcg
+        } 
+      }, '*');
+    }
+    
+    // Handle Styles JS tab activation
+    function handleStylesJSTabActivation() {
+      // Generate the filtered styles payload based on current selections
+      const filteredStyles = generateFilteredStylesPayload();
+      
+      // Request styles JS code generation from the plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-styles-js-code',
+          payload: filteredStyles
+        } 
+      }, '*');
+    }
+    
+    // Handle Styles CSS tab activation
+    function handleStylesCSSTabActivation() {
+      // Generate the filtered styles payload based on current selections
+      const filteredStyles = generateFilteredStylesPayload();
+      
+      // Request styles CSS code generation from the plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-styles-css-code',
+          payload: filteredStyles
         } 
       }, '*');
     }
@@ -1739,96 +1780,186 @@
       }
     }
 
+    // Update the Styles JS view with the current payload
+    function updateStylesJSView(jsPayload) {
+      const stylesJsCodeContent = document.getElementById('styles-js-code-content');
+      
+      if (stylesJsCodeContent) {
+        // Handle the new payload structure with both code and structure
+        if (jsPayload && typeof jsPayload === 'object' && jsPayload.code) {
+          const jsCode = jsPayload.code;
+          const structure = jsPayload.structure;
+          
+          if (jsCode && jsCode.trim() !== '{}') {
+            // Create a container with two sections: structure and code
+            stylesJsCodeContent.innerHTML = `
+              <div style="display: flex; flex-direction: column; height: 100%; gap: 12px;">
+                <div style="flex: 1; min-height: 0;">
+                  <h4 style="margin: 0 0 8px 0; color: #A0A0A0; font-size: 11px; font-weight: 500;">Object Structure</h4>
+                  <div style="background: #2C2C2C; border-radius: 4px; padding: 12px; height: calc(100% - 32px); overflow-y: auto;">
+                    <pre class="json-viewer" style="margin: 0;">${JSON.stringify(structure, null, 2)}</pre>
+                  </div>
+                </div>
+                <div style="flex: 1; min-height: 0;">
+                  <h4 style="margin: 0 0 8px 0; color: #A0A0A0; font-size: 11px; font-weight: 500;">Generated JavaScript Code</h4>
+                  <div style="background: #2C2C2C; border-radius: 4px; padding: 12px; height: calc(100% - 32px); overflow-y: auto;">
+                    <pre class="json-viewer" style="margin: 0;">${jsCode}</pre>
+                  </div>
+                </div>
+              </div>
+            `;
+          } else {
+            // Show placeholder message
+            stylesJsCodeContent.innerHTML = '<p style="margin: 0;">Select a style in the tree to view details.</p>';
+          }
+        } else if (typeof jsPayload === 'string') {
+          // Handle legacy string payload (fallback)
+          if (jsPayload && jsPayload.trim() !== '{}') {
+            stylesJsCodeContent.innerHTML = `<pre class="json-viewer">${jsPayload}</pre>`;
+          } else {
+            stylesJsCodeContent.innerHTML = '<p style="margin: 0;">Select a style in the tree to view details.</p>';
+          }
+        } else {
+          // Show placeholder message
+          stylesJsCodeContent.innerHTML = '<p style="margin: 0;">Select a style in the tree to view details.</p>';
+        }
+      }
+    }
+
+    // Update the Styles CSS view with the current payload
+    function updateStylesCSSView(cssPayload) {
+      const stylesCssCodeContent = document.getElementById('styles-css-code-content');
+      
+      if (stylesCssCodeContent) {
+        if (cssPayload && cssPayload.code && cssPayload.code.trim() !== '') {
+          // Simply show the CSS code directly
+          stylesCssCodeContent.innerHTML = `<pre class="json-viewer">${cssPayload.code}</pre>`;
+        } else {
+          // Show placeholder message
+          stylesCssCodeContent.innerHTML = '<p style="margin: 0;">Select a style in the tree to view details.</p>';
+        }
+      }
+    }
+
     // Setup download and copy button functionality
     function setupActionButtons() {
-      const downloadBtn = document.getElementById('download-code-btn');
-      const copyBtn = document.getElementById('copy-code-btn');
-      const exportBtn = document.getElementById('export-github-btn');
+      // Helper function to create action button handlers
+      function createActionButtonHandlers(downloadBtnId, copyBtnId, exportBtnId, contextName) {
+        const downloadBtn = document.getElementById(downloadBtnId);
+        const copyBtn = document.getElementById(copyBtnId);
+        const exportBtn = document.getElementById(exportBtnId);
 
-      if (downloadBtn) {
-        downloadBtn.addEventListener('click', () => {
-          const data = getActiveCodeTabData();
-          if (data) {
-            // Create temporary anchor for download
-            const blob = new Blob([data.content], { type: data.mimeType });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = data.filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          } else {
-            // Show toast when no data is selected
-            showGlobalToast('Select a variable first from the tree', 'error');
-          }
-        });
-      }
-
-      if (copyBtn) {
-        copyBtn.addEventListener('click', async () => {
-          const data = getActiveCodeTabData();
-          if (data) {
-            let copySuccess = false;
-            
-            try {
-              // Primary method: Use legacy execCommand (more reliable in plugin contexts)
-              const textarea = document.createElement('textarea');
-              textarea.value = data.content;
-              textarea.style.position = 'fixed';
-              textarea.style.left = '-999999px';
-              textarea.style.top = '-999999px';
-              document.body.appendChild(textarea);
-              textarea.focus();
-              textarea.select();
-              
-              copySuccess = document.execCommand('copy');
-              document.body.removeChild(textarea);
-              
-              // Fallback method: Modern Clipboard API
-              if (!copySuccess && navigator.clipboard) {
-                await navigator.clipboard.writeText(data.content);
-                copySuccess = true;
-              }
-            } catch (error) {
-              console.error('Failed to copy to clipboard:', error);
-              copySuccess = false;
-            }
-            
-            // Provide user feedback only if copy actually succeeded
-            if (copySuccess) {
-              const originalText = copyBtn.textContent;
-              copyBtn.textContent = 'Copied';
-              setTimeout(() => {
-                copyBtn.textContent = originalText;
-              }, 1000);
+        if (downloadBtn) {
+          downloadBtn.addEventListener('click', () => {
+            const data = getActiveCodeTabData();
+            if (data) {
+              // Create temporary anchor for download
+              const blob = new Blob([data.content], { type: data.mimeType });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = data.filename;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
             } else {
-              // Show failure feedback
-              const originalText = copyBtn.textContent;
-              copyBtn.textContent = 'Copy failed';
-              setTimeout(() => {
-                copyBtn.textContent = originalText;
-              }, 1000);
+              // Show toast when no data is selected
+              const message = contextName === 'styles' ? 'Select a style first from the tree' : 'Select a variable first from the tree';
+              showGlobalToast(message, 'error');
             }
-          } else {
-            // Show toast when no data is selected
-            showGlobalToast('Select a variable first from the tree', 'error');
-          }
-        });
+          });
+        }
+
+        if (copyBtn) {
+          copyBtn.addEventListener('click', async () => {
+            const data = getActiveCodeTabData();
+            if (data) {
+              let copySuccess = false;
+              
+              try {
+                // Primary method: Use legacy execCommand (more reliable in plugin contexts)
+                const textarea = document.createElement('textarea');
+                textarea.value = data.content;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-999999px';
+                textarea.style.top = '-999999px';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                
+                copySuccess = document.execCommand('copy');
+                document.body.removeChild(textarea);
+                
+                // Fallback method: Modern Clipboard API
+                if (!copySuccess && navigator.clipboard) {
+                  await navigator.clipboard.writeText(data.content);
+                  copySuccess = true;
+                }
+              } catch (error) {
+                console.error('Failed to copy to clipboard:', error);
+                copySuccess = false;
+              }
+              
+              // Provide user feedback only if copy actually succeeded
+              if (copySuccess) {
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Copied';
+                setTimeout(() => {
+                  copyBtn.textContent = originalText;
+                }, 1000);
+              } else {
+                // Show failure feedback
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Copy failed';
+                setTimeout(() => {
+                  copyBtn.textContent = originalText;
+                }, 1000);
+              }
+            } else {
+              // Show toast when no data is selected
+              const message = contextName === 'styles' ? 'Select a style first from the tree' : 'Select a variable first from the tree';
+              showGlobalToast(message, 'error');
+            }
+          });
+        }
+
+        if (exportBtn) {
+          exportBtn.addEventListener('click', () => {
+            // Handle export button click - check auth and show modal
+            handleExportToGitHub();
+          });
+        }
       }
 
-      if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
-          // Handle export button click - check auth and show modal
-          handleExportToGitHub();
-        });
-      }
+      // Set up action buttons for Variables view
+      createActionButtonHandlers('download-code-btn', 'copy-code-btn', 'export-github-btn', 'variables');
+      
+      // Set up action buttons for Styles view
+      createActionButtonHandlers('styles-download-code-btn', 'styles-copy-code-btn', 'styles-export-github-btn', 'styles');
     }
 
     // Helper function to get active code tab data
     function getActiveCodeTabData() {
-      const activeTabButton = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
+      // First, determine which main tab is currently active
+      const activeMainTab = document.querySelector('.tab-wrapper .tab-button.active');
+      if (!activeMainTab) return null;
+      
+      const activeMainTabTarget = activeMainTab.getAttribute('data-target');
+      
+      // Now look for the active output tab within the specific view
+      let activeTabButton;
+      if (activeMainTabTarget === 'variables-view') {
+        // Look for active tab within variables view
+        activeTabButton = document.querySelector('#variables-view #output-area-header .tab-button-group .tab-button.active');
+      } else if (activeMainTabTarget === 'styles-view') {
+        // Look for active tab within styles view
+        activeTabButton = document.querySelector('#styles-view #output-area-header .tab-button-group .tab-button.active');
+      } else {
+        // Not in Variables or Styles view, no code data available
+        return null;
+      }
+      
       if (!activeTabButton) return null;
 
       const targetId = activeTabButton.getAttribute('data-target');
@@ -1882,6 +2013,33 @@
           filename = 'tailwind.config.js';
           mimeType = 'application/javascript';
           break;
+        case 'styles-js-code-content':
+          // Handle styles JS content similar to variables JS content
+          const stylesGeneratedCodeHeaders = Array.from(contentPane.querySelectorAll('h4'));
+          const stylesGeneratedCodeHeader = stylesGeneratedCodeHeaders.find(h => h.textContent === 'Generated JavaScript Code');
+          
+          if (stylesGeneratedCodeHeader && stylesGeneratedCodeHeader.nextElementSibling) {
+            const stylesCodeContainer = stylesGeneratedCodeHeader.nextElementSibling;
+            const stylesCodeViewer = stylesCodeContainer.querySelector('.json-viewer');
+            content = stylesCodeViewer ? stylesCodeViewer.textContent : '';
+          } else {
+            // Fallback: try to get content from a single pre element (legacy case)
+            const singleStylesJsViewer = contentPane.querySelector('.json-viewer');
+            content = singleStylesJsViewer ? singleStylesJsViewer.textContent : '';
+          }
+          
+          type = 'js';
+          filename = 'styles.js';
+          mimeType = 'application/javascript';
+          break;
+        case 'styles-css-code-content':
+          // Handle styles CSS content
+          const stylesCssViewer = contentPane.querySelector('.json-viewer');
+          content = stylesCssViewer ? stylesCssViewer.textContent : '';
+          type = 'css';
+          filename = 'styles.css';
+          mimeType = 'text/css';
+          break;
         default:
           return null;
       }
@@ -1894,7 +2052,6 @@
       const patInput = document.getElementById('github-pat-input');
       const authButton = document.getElementById('github-auth-button');
       const disconnectButton = document.getElementById('github-disconnect-button');
-      const exportButton = document.getElementById('export-github-btn');
 
       // Enable/disable authenticate button based on input
       if (patInput && authButton) {
@@ -1927,13 +2084,6 @@
       if (disconnectButton) {
         disconnectButton.addEventListener('click', () => {
           disconnectGitHub();
-        });
-      }
-
-      // Handle Export to GitHub button click
-      if (exportButton) {
-        exportButton.addEventListener('click', () => {
-          handleExportToGitHub();
         });
       }
     }
@@ -2061,6 +2211,7 @@
     // Setup GitHub export modal functionality
     function setupGitHubExportModal() {
       const exportButton = document.getElementById('export-github-btn');
+      const stylesExportButton = document.getElementById('styles-export-github-btn');
       const modalOverlay = document.getElementById('export-github-modal-overlay');
       const modalCloseBtn = document.getElementById('export-modal-close-btn');
       const modalTitle = document.getElementById('modal-title');
@@ -2077,13 +2228,16 @@
       const modalExportBtn = document.getElementById('modal-export-button');
       const modalStatus = document.getElementById('export-modal-status');
       
-      // Show modal when export button is clicked
-      exportButton.addEventListener('click', () => {
+      // Common function to handle export button clicks
+      function handleExportButtonClick() {
         // Check if there's valid data to export before opening modal
         const data = getActiveCodeTabData();
         if (!data) {
-          // Show toast when no data is selected
-          showGlobalToast('Select a variable first from the tree', 'error');
+          // Show context-appropriate toast message
+          const activeMainTab = document.querySelector('.tab-wrapper .tab-button.active');
+          const isStylesTab = activeMainTab && activeMainTab.getAttribute('data-target') === 'styles-view';
+          const message = isStylesTab ? 'Select a style first from the tree' : 'Select a variable first from the tree';
+          showGlobalToast(message, 'error');
           return;
         }
 
@@ -2093,7 +2247,7 @@
         
         // Update file name placeholder based on active tab
         const fileExtension = getFileExtensionForTab(activeTabName);
-        fileNameInput.placeholder = `filename.${fileExtension} (use / for folders, e.g., src/tokens.${fileExtension})`;
+        fileNameInput.placeholder = `filename.${fileExtension}, use / for folders`;
         
         // Reset form
         resetModalForm();
@@ -2103,7 +2257,17 @@
         
         // Check GitHub auth and load repos if authenticated
         checkGitHubAuthForExport();
-      });
+      }
+      
+      // Show modal when Variables export button is clicked
+      if (exportButton) {
+        exportButton.addEventListener('click', handleExportButtonClick);
+      }
+      
+      // Show modal when Styles export button is clicked
+      if (stylesExportButton) {
+        stylesExportButton.addEventListener('click', handleExportButtonClick);
+      }
 
       // Close modal
       modalCloseBtn.addEventListener('click', () => {
@@ -2182,7 +2346,7 @@
           // Update placeholder to show folder support
           const activeTabName = getCurrentActiveTabName();
           const fileExtension = getFileExtensionForTab(activeTabName);
-          fileNameInput.placeholder = `filename.${fileExtension} (use / for folders, e.g., src/tokens.${fileExtension})`;
+          fileNameInput.placeholder = `filename.${fileExtension}, use / for folders`;
         } else {
           // Hide file name input when selecting existing file
           fileNameInput.style.display = 'none';
@@ -2237,7 +2401,25 @@
 
       // Helper functions
       function getCurrentActiveTabName() {
-        const activeTab = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
+        // First, determine which main tab is currently active
+        const activeMainTab = document.querySelector('.tab-wrapper .tab-button.active');
+        if (!activeMainTab) return 'JSON';
+        
+        const activeMainTabTarget = activeMainTab.getAttribute('data-target');
+        
+        // Now look for the active output tab within the specific view
+        let activeTab;
+        if (activeMainTabTarget === 'variables-view') {
+          // Look for active tab within variables view
+          activeTab = document.querySelector('#variables-view #output-area-header .tab-button-group .tab-button.active');
+        } else if (activeMainTabTarget === 'styles-view') {
+          // Look for active tab within styles view
+          activeTab = document.querySelector('#styles-view #output-area-header .tab-button-group .tab-button.active');
+        } else {
+          // Not in Variables or Styles view
+          return 'JSON';
+        }
+        
         if (!activeTab) return 'JSON';
         
         const targetId = activeTab.getAttribute('data-target');
@@ -2246,6 +2428,8 @@
           case 'js-code-content': return 'JS';
           case 'css-code-content': return 'CSS';
           case 'tailwind-code-content': return 'Tailwind';
+          case 'styles-js-code-content': return 'JS';
+          case 'styles-css-code-content': return 'CSS';
           default: return 'JSON';
         }
       }
@@ -2370,7 +2554,11 @@
         // Get current tab data
         const currentTabData = window.getActiveCodeTabData();
         if (!currentTabData) {
-          showModalStatus('No content to export. Please select some variables first.', 'error', true, 4000);
+          // Show context-appropriate error message
+          const activeMainTab = document.querySelector('.tab-wrapper .tab-button.active');
+          const isStylesTab = activeMainTab && activeMainTab.getAttribute('data-target') === 'styles-view';
+          const message = isStylesTab ? 'No content to export. Please select some styles first.' : 'No content to export. Please select some variables first.';
+          showModalStatus(message, 'error', true, 4000);
           return;
         }
 
@@ -2597,6 +2785,85 @@
         toast.classList.remove('show');
       }
     }
+
+    // Generate filtered styles payload based on checkbox selections
+    function generateFilteredStylesPayload() {
+      if (!originalStylesPayload) {
+        return {}; // Safety check
+      }
+
+      const filteredOutput = {};
+      
+      // Process each top-level style category
+      for (const categoryName of Object.keys(originalStylesPayload)) {
+        // Process this category recursively
+        const filteredCategory = processStylesNodeRecursively(
+          originalStylesPayload[categoryName],
+          [categoryName]
+        );
+        
+        // Only add non-null results to the output
+        if (filteredCategory !== null) {
+          filteredOutput[categoryName] = filteredCategory;
+        }
+      }
+      
+      return filteredOutput;
+    }
+    
+    /**
+     * Recursively processes a styles node and its children based on checkbox states
+     * @param {Object} nodeData - The data for this node from the original styles payload
+     * @param {Array} path - Array of strings representing the path to this node
+     * @returns {Object|null} - Filtered data or null if this node should be excluded
+     */
+    function processStylesNodeRecursively(nodeData, path) {
+      // Get the checkbox for this node
+      const checkbox = findCheckboxByPath(path);
+      
+      // If checkbox doesn't exist or is unchecked, exclude this branch
+      if (!checkbox || (!checkbox.checked && !checkbox.indeterminate)) {
+        return null;
+      }
+      
+      // If this node is a style (has an id property)
+      if (nodeData && typeof nodeData === 'object' && nodeData.id) {
+        // For style nodes, only include if explicitly checked
+        return checkbox.checked ? JSON.parse(JSON.stringify(nodeData)) : null;
+      }
+      
+      // If the checkbox is checked (not just indeterminate), include the entire subtree
+      if (checkbox.checked) {
+        return JSON.parse(JSON.stringify(nodeData));
+      }
+      
+      // For indeterminate state, we need to selectively include children
+      if (checkbox.indeterminate && typeof nodeData === 'object') {
+        const result = {};
+        let hasSelectedChildren = false;
+        
+        // Process each child
+        for (const childName of Object.keys(nodeData)) {
+          const childPath = [...path, childName];
+          const filteredChild = processStylesNodeRecursively(nodeData[childName], childPath);
+          
+          // Only include non-null results
+          if (filteredChild !== null) {
+            result[childName] = filteredChild;
+            hasSelectedChildren = true;
+          }
+        }
+        
+        // Return the result if it has any selected children, otherwise null
+        return hasSelectedChildren ? result : null;
+      }
+      
+      // Default fallback
+      return null;
+    }
+
+    // Make getActiveCodeTabData globally accessible for the export modal
+    window.getActiveCodeTabData = getActiveCodeTabData;
   </script>
 
   <!-- Export to GitHub Modal -->
@@ -2657,7 +2924,7 @@
               <path d="M3 4.5L6 7.5L9 4.5" stroke="white" stroke-opacity="0.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <input type="text" id="github-file-name" class="modal-input" placeholder="filename.json (use / for folders, e.g., src/tokens.json)" style="display: none;">
+          <input type="text" id="github-file-name" class="modal-input" placeholder="filename.json, use / for folders" style="display: none;">
         </div>
 
         <!-- Export Button -->

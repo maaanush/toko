@@ -741,6 +741,8 @@ figma.ui.onmessage = msg => {
         const dtcgPayload = await createSimplifiedDTCGPayload(data.raw || data);
         // Store the payload for JS code generation
         latestDtcgPayload = dtcgPayload;
+        // Store the raw variables payload for text styles JS generation
+        latestRawVariablesPayload = data.raw || data;
         figma.ui.postMessage({
           type: 'dtcgPayload', 
           payload: dtcgPayload
@@ -827,12 +829,61 @@ figma.ui.onmessage = msg => {
     }
   }
 
+  // Handle request to generate text styles JS code
+  if (msg.type === 'request-text-styles-js-code') {
+    try {
+      if (latestStylesPayload && latestRawVariablesPayload) {
+        const jsCode = generateJSCodeFromTextStyles(latestStylesPayload, latestRawVariablesPayload);
+        figma.ui.postMessage({
+          type: 'textStylesJsCodePreview',
+          payload: jsCode
+        });
+      } else {
+        figma.ui.postMessage({
+          type: 'error',
+          message: 'No styles or variables data available. Please generate both styles and variables first.'
+        });
+      }
+    } catch (error) {
+      figma.ui.postMessage({
+        type: 'error',
+        message: `Failed to generate text styles JS code: ${error.message}`
+      });
+    }
+  }
+
+  // Handle request to generate styles JS code from filtered payload
+  if (msg.type === 'request-styles-js-code') {
+    try {
+      const filteredStylesPayload = msg.payload;
+      if (filteredStylesPayload && latestRawVariablesPayload) {
+        const jsCode = generateJSCodeFromTextStyles(filteredStylesPayload, latestRawVariablesPayload);
+        figma.ui.postMessage({
+          type: 'stylesJsCodePreview',
+          payload: jsCode
+        });
+      } else {
+        figma.ui.postMessage({
+          type: 'error',
+          message: 'No styles selected or variables data unavailable. Please generate variables first and select some styles.'
+        });
+      }
+    } catch (error) {
+      figma.ui.postMessage({
+        type: 'error',
+        message: `Failed to generate styles JS code: ${error.message}`
+      });
+    }
+  }
+
   // Handle request to generate styles payload
   if (msg.type === 'generate-styles') {
     (async () => {
       try {
         const stylesData = await fetchAndLogAllStyles();
         const nestedStylesData = createNestedStylesPayload(stylesData);
+        // Store the styles payload for text styles JS generation
+        latestStylesPayload = nestedStylesData;
         console.log('Nested styles payload:', nestedStylesData);
         figma.ui.postMessage({
           type: 'stylesPayload', 
@@ -885,6 +936,52 @@ figma.ui.onmessage = msg => {
   if (msg.type === 'EXPORT_TO_GITHUB') {
     exportToGitHub(msg.payload);
   }
+
+  // Handle request to generate styles JS code
+  if (msg.type === 'request-styles-js-code') {
+    try {
+      if (latestStylesPayload && latestRawVariablesPayload) {
+        const jsCode = generateJSCodeFromTextStyles(msg.payload, latestRawVariablesPayload);
+        figma.ui.postMessage({
+          type: 'stylesJsCodePreview',
+          payload: jsCode
+        });
+      } else {
+        figma.ui.postMessage({
+          type: 'error',
+          message: 'No styles or variables data available. Please generate both styles and variables first.'
+        });
+      }
+    } catch (error) {
+      figma.ui.postMessage({
+        type: 'error',
+        message: `Failed to generate styles JS code: ${error.message}`
+      });
+    }
+  }
+
+  // Handle request to generate styles CSS code
+  if (msg.type === 'request-styles-css-code') {
+    try {
+      if (latestStylesPayload && latestRawVariablesPayload) {
+        const cssCode = generateCSSCodeFromTextStyles(msg.payload, latestRawVariablesPayload);
+        figma.ui.postMessage({
+          type: 'stylesCssCodePreview',
+          payload: cssCode
+        });
+      } else {
+        figma.ui.postMessage({
+          type: 'error',
+          message: 'No styles or variables data available. Please generate both styles and variables first.'
+        });
+      }
+    } catch (error) {
+      figma.ui.postMessage({
+        type: 'error',
+        message: `Failed to generate styles CSS code: ${error.message}`
+      });
+    }
+  }
 };
 
 // Send an initial plugin-info message when the plugin starts
@@ -906,6 +1003,9 @@ figma.ui.postMessage({
     // Store the payload for JS code generation
     latestDtcgPayload = simplifiedPayload;
     
+    // Store the raw variables payload for text styles JS generation
+    latestRawVariablesPayload = data.raw || data;
+    
     figma.ui.postMessage({
       type: 'dtcgPayload',
       payload: simplifiedPayload
@@ -914,6 +1014,10 @@ figma.ui.postMessage({
     // Fetch styles
     const stylesData = await fetchAndLogAllStyles();
     const nestedStylesData = createNestedStylesPayload(stylesData);
+    
+    // Store the styles payload for text styles JS generation
+    latestStylesPayload = nestedStylesData;
+    
     console.log('Initial nested styles payload:', nestedStylesData);
     figma.ui.postMessage({
       type: 'stylesPayload', 
@@ -1167,6 +1271,12 @@ async function fetchAndLogAllVariables() {
 
 // Store the latest DTCG payload for JS code generation
 let latestDtcgPayload = null;
+
+// Store the latest raw variables payload for text styles JS generation
+let latestRawVariablesPayload = null;
+
+// Store the latest styles payload for text styles JS generation  
+let latestStylesPayload = null;
 
 /**
  * Generates JavaScript code from a DTCG payload
@@ -2859,4 +2969,457 @@ async function createOrUpdateGitHubFile(repoName, branchName, fileName, content,
     const errorData = await updateResponse.json().catch(() => ({}));
     throw new Error(errorData.message || 'Failed to create/update file');
   }
+}
+
+/**
+ * Generates JavaScript code from text styles payload
+ * @param {Object} stylesPayload - The nested styles payload
+ * @param {Object} rawVariablesPayload - The raw variables payload for finding bound variables
+ * @returns {string} - The generated JavaScript code
+ */
+function generateJSCodeFromTextStyles(stylesPayload, rawVariablesPayload) {
+  if (!stylesPayload || typeof stylesPayload !== 'object') {
+    return '{}';
+  }
+
+  // Extract text styles from the nested payload
+  const textStyles = stylesPayload.text || stylesPayload;
+  
+  if (!textStyles || typeof textStyles !== 'object') {
+    return '{}';
+  }
+
+  const jsObject = {};
+  
+  // Process each text style
+  processTextStylesRecursive(textStyles, jsObject, [], rawVariablesPayload);
+  
+  // Generate JS code using the same logic as variables
+  const intermediateJsString = generateJSCodeRecursive(jsObject, [], 0);
+  const finalJsString = intermediateJsString.replace(/LB/g, '["').replace(/RB/g, '"]');
+  
+  return finalJsString;
+}
+
+/**
+ * Recursively processes text styles and builds the JavaScript object
+ * @param {Object} currentNode - Current node in the styles tree
+ * @param {Object} targetObject - Target object to build
+ * @param {Array} currentPath - Current path in the tree
+ * @param {Object} rawVariablesPayload - Raw variables payload for finding bound variables
+ */
+function processTextStylesRecursive(currentNode, targetObject, currentPath, rawVariablesPayload) {
+  if (!currentNode || typeof currentNode !== 'object') {
+    return;
+  }
+
+  for (const key in currentNode) {
+    const value = currentNode[key];
+    
+    // Check if this is a text style object (has style properties)
+    if (value && typeof value === 'object' && value.type === 'TEXT') {
+      // This is a text style - convert it to JS object
+      const styleObject = convertTextStyleToJSObject(value, rawVariablesPayload);
+      targetObject[key] = styleObject;
+    } else if (value && typeof value === 'object' && !value.type) {
+      // This is a group - recurse deeper
+      targetObject[key] = {};
+      processTextStylesRecursive(value, targetObject[key], [...currentPath, key], rawVariablesPayload);
+    }
+  }
+}
+
+/**
+ * Converts a single text style to a JavaScript object with variable references
+ * @param {Object} textStyle - The text style object
+ * @param {Object} rawVariablesPayload - Raw variables payload for finding bound variables
+ * @returns {Object} - JavaScript object representing the text style
+ */
+function convertTextStyleToJSObject(textStyle, rawVariablesPayload) {
+  const jsStyle = {};
+  
+  // Handle fontFamily
+  if (textStyle.fontName && textStyle.fontName.family) {
+    const fontFamilyRef = findVariableReference('fontFamily', textStyle.fontName.family, textStyle.boundVariables, rawVariablesPayload);
+    jsStyle.fontFamily = fontFamilyRef || `'${textStyle.fontName.family}'`;
+  }
+  
+  // Handle fontSize
+  if (textStyle.fontSize !== undefined) {
+    const fontSizeRef = findVariableReference('fontSize', textStyle.fontSize, textStyle.boundVariables, rawVariablesPayload);
+    jsStyle.fontSize = fontSizeRef || `'${textStyle.fontSize}px'`;
+  }
+  
+  // Handle lineHeight
+  if (textStyle.lineHeight !== undefined) {
+    const lineHeightRef = findVariableReference('lineHeight', textStyle.lineHeight, textStyle.boundVariables, rawVariablesPayload);
+    if (lineHeightRef) {
+      jsStyle.lineHeight = lineHeightRef;
+    } else {
+      // Handle different lineHeight types
+      if (typeof textStyle.lineHeight === 'object' && textStyle.lineHeight.unit) {
+        if (textStyle.lineHeight.unit === 'PIXELS') {
+          jsStyle.lineHeight = `'${textStyle.lineHeight.value}px'`;
+        } else if (textStyle.lineHeight.unit === 'PERCENT') {
+          jsStyle.lineHeight = `'${textStyle.lineHeight.value}%'`;
+        } else {
+          jsStyle.lineHeight = textStyle.lineHeight.value;
+        }
+      } else {
+        jsStyle.lineHeight = textStyle.lineHeight;
+      }
+    }
+  }
+  
+  // Handle letterSpacing
+  if (textStyle.letterSpacing !== undefined) {
+    const letterSpacingRef = findVariableReference('letterSpacing', textStyle.letterSpacing, textStyle.boundVariables, rawVariablesPayload);
+    if (letterSpacingRef) {
+      jsStyle.letterSpacing = letterSpacingRef;
+    } else {
+      // Handle different letterSpacing types
+      if (typeof textStyle.letterSpacing === 'object' && textStyle.letterSpacing.unit) {
+        if (textStyle.letterSpacing.unit === 'PIXELS') {
+          jsStyle.letterSpacing = `'${textStyle.letterSpacing.value}px'`;
+        } else if (textStyle.letterSpacing.unit === 'PERCENT') {
+          jsStyle.letterSpacing = `'${textStyle.letterSpacing.value}%'`;
+        } else {
+          jsStyle.letterSpacing = textStyle.letterSpacing.value;
+        }
+      } else {
+        jsStyle.letterSpacing = textStyle.letterSpacing;
+      }
+    }
+  }
+  
+  // Handle fontWeight
+  if (textStyle.fontName && textStyle.fontName.style) {
+    const fontWeightRef = findVariableReference('fontWeight', textStyle.fontName.style, textStyle.boundVariables, rawVariablesPayload);
+    if (fontWeightRef) {
+      jsStyle.fontWeight = fontWeightRef;
+    } else {
+      // Map font weight to numeric value and try to find variable
+      const numericWeight = mapFontWeight(textStyle.fontName.style);
+      const weightRef = findVariableByValue('fontWeight', numericWeight, rawVariablesPayload);
+      jsStyle.fontWeight = weightRef || numericWeight;
+    }
+  }
+  
+  return jsStyle;
+}
+
+/**
+ * Maps font weight names to numeric values
+ * @param {string|number} fontWeight - Font weight value
+ * @returns {number} - Numeric font weight
+ */
+function mapFontWeight(fontWeight) {
+  if (typeof fontWeight === 'number') {
+    return fontWeight;
+  }
+  
+  const weightMap = {
+    'Thin': 100,
+    'Extra Light': 200,
+    'Light': 300,
+    'Regular': 400,
+    'Medium': 500,
+    'Semi Bold': 600,
+    'Bold': 700,
+    'Extra Bold': 800,
+    'Black': 900
+  };
+  
+  return weightMap[fontWeight] || 400;
+}
+
+/**
+ * Finds a variable reference for a given property and value
+ * @param {string} propertyType - Type of property (fontSize, fontWeight, etc.)
+ * @param {*} value - The value to find
+ * @param {Object} boundVariables - Bound variables from the style
+ * @param {Object} rawVariablesPayload - Raw variables payload
+ * @returns {string|null} - Variable reference or null
+ */
+function findVariableReference(propertyType, value, boundVariables, rawVariablesPayload) {
+  // First, check if there's a direct bound variable for this property
+  if (boundVariables && boundVariables[propertyType]) {
+    const variableId = boundVariables[propertyType].id;
+    return findVariablePathById(variableId, rawVariablesPayload);
+  }
+  
+  // If no bound variable, try to find by value
+  return findVariableByValue(propertyType, value, rawVariablesPayload);
+}
+
+/**
+ * Finds a variable by its ID and returns the JavaScript path
+ * @param {string} variableId - Variable ID to find
+ * @param {Object} rawVariablesPayload - Raw variables payload
+ * @returns {string|null} - JavaScript path or null
+ */
+function findVariablePathById(variableId, rawVariablesPayload) {
+  // Search through all collections and variables
+  const collections = [...(rawVariablesPayload.local || []), ...(rawVariablesPayload.shared || [])];
+  
+  for (const collection of collections) {
+    if (!collection.variables) continue;
+    
+    for (const variable of collection.variables) {
+      if (variable.id === variableId) {
+        // Build the path: collectionName.variableName
+        const collectionName = sanitizeForDTCG(collection.name);
+        const variablePath = variable.name.split('/').map(segment => sanitizeForDTCG(segment));
+        
+        // Handle numeric segments
+        let pathString = [collectionName, ...variablePath].join('.');
+        const lastSegment = variablePath[variablePath.length - 1];
+        if (/^\d+$/.test(lastSegment)) {
+          const lastDotIndex = pathString.lastIndexOf('.');
+          if (lastDotIndex !== -1) {
+            pathString = pathString.substring(0, lastDotIndex) + 'LB' + lastSegment + 'RB';
+          }
+        }
+        
+        return pathString;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Finds a variable by its value and property type
+ * @param {string} propertyType - Type of property to search for
+ * @param {*} targetValue - Value to find
+ * @param {Object} rawVariablesPayload - Raw variables payload
+ * @returns {string|null} - Variable reference or null
+ */
+function findVariableByValue(propertyType, targetValue, rawVariablesPayload) {
+  const collections = [...(rawVariablesPayload.local || []), ...(rawVariablesPayload.shared || [])];
+  
+  for (const collection of collections) {
+    if (!collection.variables) continue;
+    
+    for (const variable of collection.variables) {
+      // Check if this variable matches our property type by name or scopes
+      const variableName = variable.name.toLowerCase();
+      const scopes = variable.scopes || [];
+      
+      let isMatchingType = false;
+      
+      // Check by property type and scopes
+      if (propertyType === 'fontWeight' && (
+        variableName.includes('fontweight') || 
+        variableName.includes('font-weight') ||
+        scopes.includes('FONT_WEIGHT')
+      )) {
+        isMatchingType = true;
+      } else if (propertyType === 'fontSize' && (
+        variableName.includes('fontsize') || 
+        variableName.includes('font-size') ||
+        scopes.includes('FONT_SIZE')
+      )) {
+        isMatchingType = true;
+      } else if (propertyType === 'lineHeight' && (
+        variableName.includes('lineheight') || 
+        variableName.includes('line-height') ||
+        scopes.includes('LINE_HEIGHT')
+      )) {
+        isMatchingType = true;
+      } else if (propertyType === 'letterSpacing' && (
+        variableName.includes('letterspacing') || 
+        variableName.includes('letter-spacing') ||
+        scopes.includes('LETTER_SPACING')
+      )) {
+        isMatchingType = true;
+      } else if (propertyType === 'fontFamily' && (
+        variableName.includes('fontfamily') || 
+        variableName.includes('font-family')
+      )) {
+        isMatchingType = true;
+      }
+      
+      if (!isMatchingType) continue;
+      
+      // Check if any mode has the target value
+      for (const [modeId, value] of Object.entries(variable.valuesByMode || {})) {
+        if (value === targetValue || 
+           (typeof value === 'string' && value === String(targetValue))) {
+          // Build the path
+          const collectionName = sanitizeForDTCG(collection.name);
+          const variablePath = variable.name.split('/').map(segment => sanitizeForDTCG(segment));
+          
+          let pathString = [collectionName, ...variablePath].join('.');
+          const lastSegment = variablePath[variablePath.length - 1];
+          if (/^\d+$/.test(lastSegment)) {
+            const lastDotIndex = pathString.lastIndexOf('.');
+            if (lastDotIndex !== -1) {
+              pathString = pathString.substring(0, lastDotIndex) + 'LB' + lastSegment + 'RB';
+            }
+          }
+          
+          return pathString;
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Generate CSS code from text styles payload
+ */
+function generateCSSCodeFromTextStyles(stylesPayload, rawVariablesPayload) {
+  console.log("Generating CSS code from text styles:", stylesPayload);
+  
+  if (!stylesPayload || Object.keys(stylesPayload).length === 0) {
+    return {
+      code: '',
+      structure: {}
+    };
+  }
+
+  // Generate CSS classes
+  let cssCode = '/* Generated Text Styles CSS */\n\n';
+  const cssClasses = {};
+  
+  // Process the styles payload recursively
+  processCSSStylesRecursive(stylesPayload, cssClasses, [], rawVariablesPayload);
+  
+  // Convert cssClasses object to CSS string
+  for (const className in cssClasses) {
+    const styles = cssClasses[className];
+    cssCode += `.${className} {\n`;
+    
+    for (const property in styles) {
+      cssCode += `  ${property}: ${styles[property]};\n`;
+    }
+    
+    cssCode += '}\n\n';
+  }
+  
+  return {
+    code: cssCode,
+    structure: cssClasses
+  };
+}
+
+/**
+ * Process styles recursively for CSS generation
+ */
+function processCSSStylesRecursive(currentNode, targetObject, currentPath, rawVariablesPayload) {
+  if (!currentNode || typeof currentNode !== 'object') {
+    return;
+  }
+
+  // Process each key-value pair in the current object
+  for (const key in currentNode) {
+    const value = currentNode[key];
+    const newPath = [...currentPath, key];
+    
+    // Check if this is a style object (has an id property)
+    if (value && typeof value === 'object' && value.id) {
+      // This is a style - convert to CSS
+      const cssClassName = newPath.join('-').toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      const cssProperties = convertTextStyleToCSSObject(value, rawVariablesPayload);
+      
+      if (Object.keys(cssProperties).length > 0) {
+        targetObject[cssClassName] = cssProperties;
+      }
+    } else if (value && typeof value === 'object' && !value.id) {
+      // This is a group - recurse into it
+      processCSSStylesRecursive(value, targetObject, newPath, rawVariablesPayload);
+    }
+  }
+}
+
+/**
+ * Convert a text style to CSS properties object
+ */
+function convertTextStyleToCSSObject(textStyle, rawVariablesPayload) {
+  const cssStyle = {};
+
+  // Handle font family
+  if (textStyle.fontName && textStyle.fontName.family) {
+    cssStyle['font-family'] = `"${textStyle.fontName.family}", sans-serif`;
+  }
+
+  // Handle font weight
+  if (textStyle.fontName && textStyle.fontName.style) {
+    const fontWeightRef = findVariableReference('fontWeight', textStyle.fontName.style, textStyle.boundVariables, rawVariablesPayload);
+    if (fontWeightRef) {
+      cssStyle['font-weight'] = fontWeightRef;
+    } else {
+      // Map font weight to numeric value and try to find variable
+      const numericWeight = mapFontWeight(textStyle.fontName.style);
+      const weightRef = findVariableByValue('fontWeight', numericWeight, rawVariablesPayload);
+      cssStyle['font-weight'] = weightRef || numericWeight;
+    }
+  }
+
+  // Handle font size
+  if (textStyle.fontSize !== undefined) {
+    const fontSizeRef = findVariableReference('fontSize', textStyle.fontSize, textStyle.boundVariables, rawVariablesPayload);
+    if (fontSizeRef) {
+      cssStyle['font-size'] = fontSizeRef;
+    } else {
+      const sizeRef = findVariableByValue('fontSize', textStyle.fontSize, rawVariablesPayload);
+      cssStyle['font-size'] = sizeRef || `${textStyle.fontSize}px`;
+    }
+  }
+
+  // Handle line height
+  if (textStyle.lineHeight && textStyle.lineHeight.value !== undefined) {
+    const lineHeightRef = findVariableReference('lineHeight', textStyle.lineHeight.value, textStyle.boundVariables, rawVariablesPayload);
+    if (lineHeightRef) {
+      cssStyle['line-height'] = lineHeightRef;
+    } else {
+      const heightRef = findVariableByValue('lineHeight', textStyle.lineHeight.value, rawVariablesPayload);
+      if (textStyle.lineHeight.unit === 'PERCENT') {
+        cssStyle['line-height'] = heightRef || (textStyle.lineHeight.value / 100);
+      } else {
+        cssStyle['line-height'] = heightRef || `${textStyle.lineHeight.value}px`;
+      }
+    }
+  }
+
+  // Handle letter spacing
+  if (textStyle.letterSpacing && textStyle.letterSpacing.value !== undefined) {
+    const letterSpacingRef = findVariableReference('letterSpacing', textStyle.letterSpacing.value, textStyle.boundVariables, rawVariablesPayload);
+    if (letterSpacingRef) {
+      cssStyle['letter-spacing'] = letterSpacingRef;
+    } else {
+      const spacingRef = findVariableByValue('letterSpacing', textStyle.letterSpacing.value, rawVariablesPayload);
+      if (textStyle.letterSpacing.unit === 'PERCENT') {
+        cssStyle['letter-spacing'] = spacingRef || `${textStyle.letterSpacing.value}%`;
+      } else {
+        cssStyle['letter-spacing'] = spacingRef || `${textStyle.letterSpacing.value}px`;
+      }
+    }
+  }
+
+  // Handle text decoration
+  if (textStyle.textDecoration) {
+    if (textStyle.textDecoration === 'UNDERLINE') {
+      cssStyle['text-decoration'] = 'underline';
+    } else if (textStyle.textDecoration === 'STRIKETHROUGH') {
+      cssStyle['text-decoration'] = 'line-through';
+    }
+  }
+
+  // Handle text case
+  if (textStyle.textCase) {
+    if (textStyle.textCase === 'UPPER') {
+      cssStyle['text-transform'] = 'uppercase';
+    } else if (textStyle.textCase === 'LOWER') {
+      cssStyle['text-transform'] = 'lowercase';
+    } else if (textStyle.textCase === 'TITLE') {
+      cssStyle['text-transform'] = 'capitalize';
+    }
+  }
+
+  return cssStyle;
 }
