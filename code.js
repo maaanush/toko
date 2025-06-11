@@ -19,6 +19,23 @@ function roundToMaxThreeDecimals(num) {
 }
 
 /**
+ * Helper function to convert px to rem with proper formatting
+ * @param {number} pxValue - The pixel value to convert
+ * @param {number} baseFontSize - The base font size for rem calculation (default 16)
+ * @returns {string} - The rem value formatted as string
+ */
+function convertPxToRem(pxValue, baseFontSize = 16) {
+  if (typeof pxValue !== 'number' || isNaN(pxValue) || baseFontSize === 0) {
+    return `${pxValue}px`; // Fallback to px if conversion fails
+  }
+  
+  const remValue = pxValue / baseFontSize;
+  const roundedRem = roundToMaxThreeDecimals(remValue);
+  
+  return `${roundedRem}rem`;
+}
+
+/**
  * Helper function to convert RGB to HSL
  * @param {number} r - Red value (0-1)
  * @param {number} g - Green value (0-1)
@@ -982,6 +999,52 @@ figma.ui.onmessage = msg => {
       });
     }
   }
+
+  // Handle REM settings update
+  if (msg.type === 'UPDATE_REM_SETTING') {
+    (async () => {
+      try {
+        const { useRem, baseFontSize } = msg.payload || {};
+        
+        useRemUnits = useRem !== undefined ? useRem : false;
+        remBaseFontSize = baseFontSize !== undefined ? baseFontSize : 16;
+        
+        await saveRemSettings();
+        
+        // Send update confirmation first
+        figma.ui.postMessage({
+          type: 'REM_SETTING_UPDATED',
+          payload: {
+            useRemUnits,
+            remBaseFontSize,
+            message: `REM conversion ${useRemUnits ? 'enabled' : 'disabled'}${useRemUnits ? ` (base: ${remBaseFontSize}px)` : ''}`
+          }
+        });
+        
+        // Trigger clean data refresh (no state preservation)
+        await refreshDataWithCleanReset();
+        
+        console.log('REM settings updated and data refreshed with clean reset:', { useRemUnits, remBaseFontSize });
+      } catch (error) {
+        console.error('Error updating REM settings:', error);
+        figma.ui.postMessage({
+          type: 'error',
+          message: 'Failed to update REM settings'
+        });
+      }
+    })();
+  }
+
+  // Handle request for current REM settings
+  if (msg.type === 'REQUEST_REM_SETTINGS') {
+    figma.ui.postMessage({
+      type: 'REM_SETTINGS_STATUS',
+      payload: {
+        useRemUnits,
+        remBaseFontSize
+      }
+    });
+  }
 };
 
 // Send an initial plugin-info message when the plugin starts
@@ -995,6 +1058,18 @@ figma.ui.postMessage({
 // Automatically fetch and send data when the plugin UI loads
 (async () => {
   try {
+    // Load REM settings first
+    await loadRemSettings();
+    
+    // Send initial REM settings to UI
+    figma.ui.postMessage({
+      type: 'REM_SETTINGS_STATUS',
+      payload: {
+        useRemUnits,
+        remBaseFontSize
+      }
+    });
+
     // Fetch variables
     const data = await fetchAndLogAllVariables();
     // Use createSimplifiedDTCGPayload with the raw data part of the fetched result
@@ -1189,7 +1264,7 @@ function convertFigmaValueToDTCG(value, figmaType, dtcgType) {
       const num = parseFloat(value);
       const roundedNum = isNaN(num) ? 0 : roundToMaxThreeDecimals(num);
       
-      // Define types that require px units
+      // Define types that require px units (or rem if setting is enabled)
       const TYPES_REQUIRING_PX = new Set([
         'dimension', 
         'fontSize', 
@@ -1199,9 +1274,14 @@ function convertFigmaValueToDTCG(value, figmaType, dtcgType) {
         'borderWidth'
       ]);
       
-      // Add px units for dimensional types
+      // Add px/rem units for dimensional types
       if (TYPES_REQUIRING_PX.has(dtcgType)) {
-        return `${roundedNum}px`;
+        // Use rem conversion if enabled, otherwise use px
+        if (useRemUnits) {
+          return convertPxToRem(roundedNum, remBaseFontSize);
+        } else {
+          return `${roundedNum}px`;
+        }
       }
       
       // Return unitless for number, fontWeight, opacity, etc.
@@ -1277,6 +1357,10 @@ let latestRawVariablesPayload = null;
 
 // Store the latest styles payload for text styles JS generation  
 let latestStylesPayload = null;
+
+// REM conversion settings
+let useRemUnits = false;
+let remBaseFontSize = 16; // Default base font size for rem calculations
 
 /**
  * Generates JavaScript code from a DTCG payload
@@ -3283,18 +3367,25 @@ function generateCSSCodeFromTextStyles(stylesPayload, rawVariablesPayload) {
   }
 
   // Generate CSS classes
-  let cssCode = '/* Generated Text Styles CSS */\n\n';
+  let cssCode = '/* Generated Text Styles CSS */\n';
+  cssCode += '/* This CSS contains utility classes for your Figma text styles. */\n';
+  cssCode += '/* CSS variables are defined in the Variables tab and referenced here with var() syntax. */\n\n';
+  
   const cssClasses = {};
   
   // Process the styles payload recursively
   processCSSStylesRecursive(stylesPayload, cssClasses, [], rawVariablesPayload);
   
   // Convert cssClasses object to CSS string
-  for (const className in cssClasses) {
+  const classNames = Object.keys(cssClasses).sort(); // Sort for consistent output
+  
+  for (const className of classNames) {
     const styles = cssClasses[className];
     cssCode += `.${className} {\n`;
     
-    for (const property in styles) {
+    // Sort properties for consistent output
+    const properties = Object.keys(styles).sort();
+    for (const property of properties) {
       cssCode += `  ${property}: ${styles[property]};\n`;
     }
     
@@ -3323,7 +3414,14 @@ function processCSSStylesRecursive(currentNode, targetObject, currentPath, rawVa
     // Check if this is a style object (has an id property)
     if (value && typeof value === 'object' && value.id) {
       // This is a style - convert to CSS
-      const cssClassName = newPath.join('-').toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      // Create a semantic CSS class name with text- prefix
+      const rawClassName = newPath.join('-').toLowerCase();
+      // Clean up the class name to follow CSS conventions
+      const cssClassName = 'text-' + rawClassName
+        .replace(/[^a-z0-9-]/g, '-')  // Replace invalid characters with hyphens
+        .replace(/-+/g, '-')          // Collapse multiple hyphens
+        .replace(/^-|-$/g, '');       // Remove leading/trailing hyphens
+      
       const cssProperties = convertTextStyleToCSSObject(value, rawVariablesPayload);
       
       if (Object.keys(cssProperties).length > 0) {
@@ -3342,21 +3440,34 @@ function processCSSStylesRecursive(currentNode, targetObject, currentPath, rawVa
 function convertTextStyleToCSSObject(textStyle, rawVariablesPayload) {
   const cssStyle = {};
 
+  // Helper function to convert variable path to CSS variable format
+  function formatCSSVariable(variablePath) {
+    if (!variablePath) return null;
+    // Convert dot notation to kebab-case and wrap in var()
+    const cssVarName = '--' + variablePath.replace(/\./g, '-').toLowerCase();
+    return `var(${cssVarName})`;
+  }
+
   // Handle font family
   if (textStyle.fontName && textStyle.fontName.family) {
-    cssStyle['font-family'] = `"${textStyle.fontName.family}", sans-serif`;
+    const fontFamilyRef = findVariableReference('fontFamily', textStyle.fontName.family, textStyle.boundVariables, rawVariablesPayload);
+    if (fontFamilyRef) {
+      cssStyle['font-family'] = formatCSSVariable(fontFamilyRef);
+    } else {
+      cssStyle['font-family'] = `"${textStyle.fontName.family}", sans-serif`;
+    }
   }
 
   // Handle font weight
   if (textStyle.fontName && textStyle.fontName.style) {
     const fontWeightRef = findVariableReference('fontWeight', textStyle.fontName.style, textStyle.boundVariables, rawVariablesPayload);
     if (fontWeightRef) {
-      cssStyle['font-weight'] = fontWeightRef;
+      cssStyle['font-weight'] = formatCSSVariable(fontWeightRef);
     } else {
       // Map font weight to numeric value and try to find variable
       const numericWeight = mapFontWeight(textStyle.fontName.style);
       const weightRef = findVariableByValue('fontWeight', numericWeight, rawVariablesPayload);
-      cssStyle['font-weight'] = weightRef || numericWeight;
+      cssStyle['font-weight'] = weightRef ? formatCSSVariable(weightRef) : numericWeight;
     }
   }
 
@@ -3364,10 +3475,10 @@ function convertTextStyleToCSSObject(textStyle, rawVariablesPayload) {
   if (textStyle.fontSize !== undefined) {
     const fontSizeRef = findVariableReference('fontSize', textStyle.fontSize, textStyle.boundVariables, rawVariablesPayload);
     if (fontSizeRef) {
-      cssStyle['font-size'] = fontSizeRef;
+      cssStyle['font-size'] = formatCSSVariable(fontSizeRef);
     } else {
       const sizeRef = findVariableByValue('fontSize', textStyle.fontSize, rawVariablesPayload);
-      cssStyle['font-size'] = sizeRef || `${textStyle.fontSize}px`;
+      cssStyle['font-size'] = sizeRef ? formatCSSVariable(sizeRef) : `${textStyle.fontSize}px`;
     }
   }
 
@@ -3375,13 +3486,17 @@ function convertTextStyleToCSSObject(textStyle, rawVariablesPayload) {
   if (textStyle.lineHeight && textStyle.lineHeight.value !== undefined) {
     const lineHeightRef = findVariableReference('lineHeight', textStyle.lineHeight.value, textStyle.boundVariables, rawVariablesPayload);
     if (lineHeightRef) {
-      cssStyle['line-height'] = lineHeightRef;
+      cssStyle['line-height'] = formatCSSVariable(lineHeightRef);
     } else {
       const heightRef = findVariableByValue('lineHeight', textStyle.lineHeight.value, rawVariablesPayload);
-      if (textStyle.lineHeight.unit === 'PERCENT') {
-        cssStyle['line-height'] = heightRef || (textStyle.lineHeight.value / 100);
+      if (heightRef) {
+        cssStyle['line-height'] = formatCSSVariable(heightRef);
       } else {
-        cssStyle['line-height'] = heightRef || `${textStyle.lineHeight.value}px`;
+        if (textStyle.lineHeight.unit === 'PERCENT') {
+          cssStyle['line-height'] = (textStyle.lineHeight.value / 100);
+        } else {
+          cssStyle['line-height'] = `${textStyle.lineHeight.value}px`;
+        }
       }
     }
   }
@@ -3390,13 +3505,17 @@ function convertTextStyleToCSSObject(textStyle, rawVariablesPayload) {
   if (textStyle.letterSpacing && textStyle.letterSpacing.value !== undefined) {
     const letterSpacingRef = findVariableReference('letterSpacing', textStyle.letterSpacing.value, textStyle.boundVariables, rawVariablesPayload);
     if (letterSpacingRef) {
-      cssStyle['letter-spacing'] = letterSpacingRef;
+      cssStyle['letter-spacing'] = formatCSSVariable(letterSpacingRef);
     } else {
       const spacingRef = findVariableByValue('letterSpacing', textStyle.letterSpacing.value, rawVariablesPayload);
-      if (textStyle.letterSpacing.unit === 'PERCENT') {
-        cssStyle['letter-spacing'] = spacingRef || `${textStyle.letterSpacing.value}%`;
+      if (spacingRef) {
+        cssStyle['letter-spacing'] = formatCSSVariable(spacingRef);
       } else {
-        cssStyle['letter-spacing'] = spacingRef || `${textStyle.letterSpacing.value}px`;
+        if (textStyle.letterSpacing.unit === 'PERCENT') {
+          cssStyle['letter-spacing'] = `${textStyle.letterSpacing.value}%`;
+        } else {
+          cssStyle['letter-spacing'] = `${textStyle.letterSpacing.value}px`;
+        }
       }
     }
   }
@@ -3407,6 +3526,8 @@ function convertTextStyleToCSSObject(textStyle, rawVariablesPayload) {
       cssStyle['text-decoration'] = 'underline';
     } else if (textStyle.textDecoration === 'STRIKETHROUGH') {
       cssStyle['text-decoration'] = 'line-through';
+    } else if (textStyle.textDecoration === 'NONE') {
+      cssStyle['text-decoration'] = 'none';
     }
   }
 
@@ -3418,8 +3539,138 @@ function convertTextStyleToCSSObject(textStyle, rawVariablesPayload) {
       cssStyle['text-transform'] = 'lowercase';
     } else if (textStyle.textCase === 'TITLE') {
       cssStyle['text-transform'] = 'capitalize';
+    } else if (textStyle.textCase === 'ORIGINAL') {
+      cssStyle['text-transform'] = 'none';
     }
   }
 
   return cssStyle;
+}
+
+/**
+ * Load rem conversion settings from storage
+ */
+async function loadRemSettings() {
+  try {
+    const storedUseRem = await figma.clientStorage.getAsync('useRemUnits');
+    const storedBaseFontSize = await figma.clientStorage.getAsync('remBaseFontSize');
+    
+    useRemUnits = storedUseRem !== null ? storedUseRem : false;
+    remBaseFontSize = storedBaseFontSize !== null ? storedBaseFontSize : 16;
+    
+    console.log('Loaded rem settings:', { useRemUnits, remBaseFontSize });
+  } catch (error) {
+    console.error('Error loading rem settings:', error);
+    useRemUnits = false;
+    remBaseFontSize = 16;
+  }
+}
+
+/**
+ * Save rem conversion settings to storage
+ */
+async function saveRemSettings() {
+  try {
+    await figma.clientStorage.setAsync('useRemUnits', useRemUnits);
+    await figma.clientStorage.setAsync('remBaseFontSize', remBaseFontSize);
+    console.log('Saved rem settings:', { useRemUnits, remBaseFontSize });
+  } catch (error) {
+    console.error('Error saving rem settings:', error);
+  }
+}
+
+/**
+ * Refresh all data while preserving UI state
+ */
+async function refreshDataWithPreservedState() {
+  try {
+    // Step 1: Request UI to save its current state
+    figma.ui.postMessage({
+      type: 'SAVE_UI_STATE_FOR_REFRESH',
+      payload: {
+        message: 'Applying new unit settings...'
+      }
+    });
+    
+    // Step 2: Re-fetch and regenerate all data with new settings
+    console.log('Refreshing data with new REM settings...');
+    
+    // Re-fetch variables
+    const variablesData = await fetchAndLogAllVariables();
+    const refreshedDtcgPayload = await createSimplifiedDTCGPayload(variablesData.raw || variablesData);
+    
+    // Update stored payloads
+    latestDtcgPayload = refreshedDtcgPayload;
+    latestRawVariablesPayload = variablesData.raw || variablesData;
+    
+    // Re-fetch styles
+    const stylesData = await fetchAndLogAllStyles();
+    const refreshedNestedStylesData = createNestedStylesPayload(stylesData);
+    
+    // Update stored styles payload
+    latestStylesPayload = refreshedNestedStylesData;
+    
+    // Step 3: Send refreshed data to UI with restoration instruction
+    figma.ui.postMessage({
+      type: 'DATA_REFRESHED_RESTORE_STATE',
+      payload: {
+        dtcgPayload: refreshedDtcgPayload,
+        stylesPayload: refreshedNestedStylesData,
+        message: 'Settings applied successfully!'
+      }
+    });
+    
+    console.log('Data refresh with state preservation completed');
+    
+  } catch (error) {
+    console.error('Error during data refresh:', error);
+    figma.ui.postMessage({
+      type: 'error',
+      message: 'Failed to refresh data. Please try again.'
+    });
+  }
+}
+
+/**
+ * Refresh all data with clean reset (no state preservation)
+ */
+async function refreshDataWithCleanReset() {
+  try {
+    // Step 1: Re-fetch and regenerate all data with new settings
+    console.log('Refreshing data with clean reset...');
+    
+    // Re-fetch variables
+    const variablesData = await fetchAndLogAllVariables();
+    const refreshedDtcgPayload = await createSimplifiedDTCGPayload(variablesData.raw || variablesData);
+    
+    // Update stored payloads
+    latestDtcgPayload = refreshedDtcgPayload;
+    latestRawVariablesPayload = variablesData.raw || variablesData;
+    
+    // Re-fetch styles
+    const stylesData = await fetchAndLogAllStyles();
+    const refreshedNestedStylesData = createNestedStylesPayload(stylesData);
+    
+    // Update stored styles payload
+    latestStylesPayload = refreshedNestedStylesData;
+    
+    // Step 2: Send refreshed data to UI with clean reset instruction
+    figma.ui.postMessage({
+      type: 'DATA_REFRESHED_CLEAN_RESET',
+      payload: {
+        dtcgPayload: refreshedDtcgPayload,
+        stylesPayload: refreshedNestedStylesData,
+        message: `Unit conversion ${useRemUnits ? 'enabled' : 'disabled'} - tree reset`
+      }
+    });
+    
+    console.log('Data refresh with clean reset completed');
+    
+  } catch (error) {
+    console.error('Error during clean data refresh:', error);
+    figma.ui.postMessage({
+      type: 'error',
+      message: 'Failed to refresh data. Please try again.'
+    });
+  }
 }

@@ -29,6 +29,10 @@
       --modal-input-bg: rgba(255, 255, 255, 0.12); /* Based on design opacity 0.12 */
       --modal-tab-active-bg: rgba(255, 255, 255, 0.14); /* Based on design opacity 0.14 */
       --modal-export-btn-bg: #00924B; /* Same as GitHub auth button */
+      /* Toggle switch variables */
+      --toggle-bg-inactive: #444444;
+      --toggle-bg-active: #00924B;
+      --toggle-slider-bg: #ffffff;
     }
 
     body {
@@ -505,6 +509,7 @@
       color: var(--figma-color-text);
       border: none;
       border-radius: 4px;
+      font-family: inherit;
       font-size: 11px;
       font-weight: 500;
       cursor: pointer;
@@ -591,6 +596,66 @@
       color: var(--tab-default-text-color);
     }
     /* End of Global Toast Styles */
+
+    /* Toggle Switch Styles */
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 32px;
+      height: 18px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--toggle-bg-inactive);
+      transition: 0.2s;
+      border-radius: 28px;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 1px;
+      bottom: 1px;
+      background-color: var(--toggle-slider-bg);
+      transition: 0.2s;
+      border-radius: 50%;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: var(--toggle-bg-active);
+    }
+
+    .toggle-switch input:focus + .toggle-slider {
+      box-shadow: 0 0 1px var(--toggle-bg-active);
+    }
+
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(14px);
+    }
+
+    /* Base font size container visibility */
+    #base-font-size-container {
+      opacity: 0.5;
+      transition: opacity 0.2s ease;
+    }
+
+    #base-font-size-container.enabled {
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -879,10 +944,49 @@
           </div>
          </div>
 
-        <!-- Settings View (Placeholder) -->
+        <!-- Settings View -->
          <div class="tab-content" id="settings-view">
-          <div id="output-area">
-            Output Area (Settings)
+          <div id="output-area" style="padding: 20px; flex-direction: column; align-items: center; justify-content: center;">
+            
+            <!-- Dimension Section - matching Figma design exactly -->
+            <div style="width: 100%;  max-width: 400px;">
+              <h2 style="margin-bottom: 8px; margin-top: 0px; font-size: 13px; color: var(--figma-color-text); font-weight: 500;">Dimension</h2>
+              
+              <!-- Toggle Switch for REM -->
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+                <label for="rem-toggle" style="font-size: 11px; color: var(--figma-color-text); opacity: 0.7; cursor: pointer; font-weight: 400;">
+                  Use REM units for pixel values
+                </label>
+                <label class="toggle-switch" style="margin-left: auto; margin-right: 2px;">
+                  <input type="checkbox" id="rem-toggle">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              
+              <!-- Base Value Section -->
+              <div style="margin-bottom: 16px;" id="base-font-size-container">
+                <h2 style="margin-bottom: 2px; font-size: 13px; color: var(--figma-color-text); font-weight: 500;">Base Value</h2>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <label for="base-font-size" style="font-size: 11px; color: var(--figma-color-text); opacity: 0.7; font-weight: 400;">
+                    Base value for rem conversion
+                  </label>
+                  <input type="number" id="base-font-size" value="16" min="1" max="100" style="
+                    background: var(--input-field-bg);
+                    border: none;
+                    color: var(--figma-color-text);
+                    font-family: inherit;
+                    font-size: 12px;
+                    padding: 8px 12px;
+                    border-radius: 4px;
+                    width: 80px;
+                    outline: none;
+                    margin-left: auto;
+                    margin-right: 4px;
+                  ">
+                  <span style="font-size: 12px; color: var(--figma-color-text); font-weight: 400;">px</span>
+                </div>
+              </div>
+            </div>
           </div>
          </div>
 
@@ -951,6 +1055,9 @@
 
       // Setup GitHub export modal functionality
       setupGitHubExportModal();
+
+      // Setup REM settings functionality
+      setupRemSettings();
 
       // Simplified message handler - properly handle real data and display it
       window.onmessage = async (event) => {
@@ -1033,6 +1140,25 @@
           setTimeout(() => {
             hideGitHubAuthStatus();
           }, 3000);
+        } else if (msg.type === 'REM_SETTINGS_STATUS') {
+          // Handle initial REM settings status
+          updateRemSettingsUI(msg.payload.useRemUnits, msg.payload.remBaseFontSize);
+        } else if (msg.type === 'REM_SETTING_UPDATED') {
+          // Handle REM setting update confirmation
+          console.log('REM settings updated:', msg.payload);
+          updateRemSettingsUI(msg.payload.useRemUnits, msg.payload.remBaseFontSize);
+        } else if (msg.type === 'SAVE_UI_STATE_FOR_REFRESH') {
+          // Save current UI state before data refresh
+          saveCurrentUIState();
+          console.log('UI state saved for refresh');
+        } else if (msg.type === 'DATA_REFRESHED_RESTORE_STATE') {
+          // Handle refreshed data and restore UI state
+          console.log('Received refreshed data, restoring state...');
+          handleDataRefreshWithStateRestore(msg.payload);
+        } else if (msg.type === 'DATA_REFRESHED_CLEAN_RESET') {
+          // Handle refreshed data with clean reset (no state preservation)
+          console.log('Received refreshed data, performing clean reset...');
+          handleDataRefreshWithCleanReset(msg.payload);
         }
       };
     });
@@ -2864,6 +2990,424 @@
 
     // Make getActiveCodeTabData globally accessible for the export modal
     window.getActiveCodeTabData = getActiveCodeTabData;
+
+    // REM Settings Functions
+    function setupRemSettings() {
+      const remToggle = document.getElementById('rem-toggle');
+      const baseFontSizeInput = document.getElementById('base-font-size');
+      const baseFontSizeContainer = document.getElementById('base-font-size-container');
+
+      // Toggle switch event listener
+      remToggle.addEventListener('change', function() {
+        const useRem = this.checked;
+        const baseFontSize = parseInt(baseFontSizeInput.value) || 16;
+
+        // Update UI state
+        updateBaseFontSizeVisibility(useRem);
+
+        // Send update to plugin
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'UPDATE_REM_SETTING',
+            payload: { 
+              useRem: useRem, 
+              baseFontSize: baseFontSize 
+            }
+          } 
+        }, '*');
+      });
+
+      // Base font size input event listener
+      baseFontSizeInput.addEventListener('change', function() {
+        const baseFontSize = parseInt(this.value) || 16;
+        const useRem = remToggle.checked;
+
+        // Only send update if REM is enabled
+        if (useRem) {
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'UPDATE_REM_SETTING',
+              payload: { 
+                useRem: useRem, 
+                baseFontSize: baseFontSize 
+              }
+            } 
+          }, '*');
+        }
+      });
+
+      // Request initial settings from plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'REQUEST_REM_SETTINGS'
+        } 
+      }, '*');
+    }
+
+    function updateRemSettingsUI(useRemUnits, remBaseFontSize) {
+      const remToggle = document.getElementById('rem-toggle');
+      const baseFontSizeInput = document.getElementById('base-font-size');
+
+      // Update toggle state
+      remToggle.checked = useRemUnits;
+
+      // Update base font size input
+      baseFontSizeInput.value = remBaseFontSize;
+
+      // Update visibility
+      updateBaseFontSizeVisibility(useRemUnits);
+    }
+
+    function updateBaseFontSizeVisibility(isEnabled) {
+      const baseFontSizeContainer = document.getElementById('base-font-size-container');
+      
+      if (isEnabled) {
+        baseFontSizeContainer.classList.add('enabled');
+      } else {
+        baseFontSizeContainer.classList.remove('enabled');
+      }
+    }
+
+    // UI State Preservation and Restoration Functions
+    let savedUIState = null;
+
+    function saveCurrentUIState() {
+      try {
+        const state = {
+          // Save checkbox states for variables
+          variableCheckboxes: {},
+          variableExpandedItems: {},
+          
+          // Save checkbox states for styles
+          styleCheckboxes: {},
+          styleExpandedItems: {},
+          
+          // Save active tabs
+          activeMainTab: null,
+          activeOutputTab: null,
+          
+          // Save current view
+          timestamp: Date.now()
+        };
+
+        // Get active main tab
+        const activeMainTab = document.querySelector('.tab-wrapper .tab-button.active');
+        if (activeMainTab) {
+          state.activeMainTab = activeMainTab.getAttribute('data-target');
+        }
+
+        // Get active output tab
+        const activeOutputTab = document.querySelector('.output-tab-button.active');
+        if (activeOutputTab) {
+          state.activeOutputTab = activeOutputTab.getAttribute('data-target');
+        }
+
+        // Save variable checkbox states
+        const variableCheckboxes = document.querySelectorAll('#variables-tree input[type="checkbox"]');
+        variableCheckboxes.forEach(checkbox => {
+          const path = checkbox.getAttribute('data-path');
+          if (path) {
+            state.variableCheckboxes[path] = {
+              checked: checkbox.checked,
+              indeterminate: checkbox.indeterminate
+            };
+          }
+        });
+
+        // Save variable expanded states
+        const variableItems = document.querySelectorAll('#variables-tree .checkbox-item');
+        variableItems.forEach(item => {
+          const li = item.closest('li');
+          if (li && li.classList.contains('expanded')) {
+            const path = li.querySelector('input[type="checkbox"]')?.getAttribute('data-path');
+            if (path) {
+              state.variableExpandedItems[path] = true;
+            }
+          }
+        });
+
+        // Save style checkbox states
+        const styleCheckboxes = document.querySelectorAll('#styles-tree input[type="checkbox"]');
+        styleCheckboxes.forEach(checkbox => {
+          const path = checkbox.getAttribute('data-path');
+          if (path) {
+            state.styleCheckboxes[path] = {
+              checked: checkbox.checked,
+              indeterminate: checkbox.indeterminate
+            };
+          }
+        });
+
+        // Save style expanded states
+        const styleItems = document.querySelectorAll('#styles-tree .checkbox-item');
+        styleItems.forEach(item => {
+          const li = item.closest('li');
+          if (li && li.classList.contains('expanded')) {
+            const path = li.querySelector('input[type="checkbox"]')?.getAttribute('data-path');
+            if (path) {
+              state.styleExpandedItems[path] = true;
+            }
+          }
+        });
+
+        savedUIState = state;
+        console.log('UI state saved:', state);
+
+      } catch (error) {
+        console.error('Error saving UI state:', error);
+        savedUIState = null;
+      }
+    }
+
+    function handleDataRefreshWithStateRestore(payload) {
+      try {
+        // Update the original payloads
+        originalDtcgPayload = payload.dtcgPayload;
+        originalStylesPayload = payload.stylesPayload;
+
+        // Render the new data
+        renderCheckboxTree(payload.dtcgPayload);
+        renderStylesCheckboxTree(payload.stylesPayload);
+
+        // Restore UI state after a short delay to ensure DOM is ready
+        setTimeout(() => {
+          restoreUIState();
+        }, 100);
+
+      } catch (error) {
+        console.error('Error handling data refresh:', error);
+      }
+    }
+
+    function handleDataRefreshWithCleanReset(payload) {
+      try {
+        console.log('Performing clean reset with new data...');
+        
+        // Update the original payloads
+        originalDtcgPayload = payload.dtcgPayload;
+        originalStylesPayload = payload.stylesPayload;
+
+        // Render the new data (this will create fresh trees with no selections)
+        renderCheckboxTree(payload.dtcgPayload);
+        renderStylesCheckboxTree(payload.stylesPayload);
+
+        // Clear all code output views
+        clearCodeViews();
+        
+        // Clear any saved state
+        savedUIState = null;
+        
+        console.log('Clean reset completed - all selections cleared');
+
+      } catch (error) {
+        console.error('Error handling clean data refresh:', error);
+      }
+    }
+
+    function restoreUIState() {
+      if (!savedUIState) {
+        console.log('No saved UI state to restore');
+        return;
+      }
+
+      try {
+        console.log('Restoring UI state:', savedUIState);
+
+        // Restore main tab
+        if (savedUIState.activeMainTab) {
+          const mainTabButton = document.querySelector(`[data-target="${savedUIState.activeMainTab}"]`);
+          if (mainTabButton) {
+            mainTabButton.click();
+          }
+        }
+
+        // Restore output tab
+        if (savedUIState.activeOutputTab) {
+          const outputTabButton = document.querySelector(`[data-target="${savedUIState.activeOutputTab}"]`);
+          if (outputTabButton) {
+            outputTabButton.click();
+          }
+        }
+
+        // FIRST: Restore expanded states to ensure checkboxes are visible
+        Object.keys(savedUIState.variableExpandedItems).forEach(path => {
+          const checkbox = document.querySelector(`#variables-tree input[data-path="${path}"]`);
+          if (checkbox) {
+            const li = checkbox.closest('li');
+            if (li) {
+              li.classList.add('expanded');
+            }
+          }
+        });
+
+        Object.keys(savedUIState.styleExpandedItems).forEach(path => {
+          const checkbox = document.querySelector(`#styles-tree input[data-path="${path}"]`);
+          if (checkbox) {
+            const li = checkbox.closest('li');
+            if (li) {
+              li.classList.add('expanded');
+            }
+          }
+        });
+
+        // SECOND: Restore checkbox states (now that parents are expanded)
+        Object.keys(savedUIState.variableCheckboxes).forEach(path => {
+          const checkbox = document.querySelector(`#variables-tree input[data-path="${path}"]`);
+          if (checkbox) {
+            const state = savedUIState.variableCheckboxes[path];
+            checkbox.checked = state.checked;
+            checkbox.indeterminate = state.indeterminate;
+          }
+        });
+
+        Object.keys(savedUIState.styleCheckboxes).forEach(path => {
+          const checkbox = document.querySelector(`#styles-tree input[data-path="${path}"]`);
+          if (checkbox) {
+            const state = savedUIState.styleCheckboxes[path];
+            checkbox.checked = state.checked;
+            checkbox.indeterminate = state.indeterminate;
+          }
+        });
+
+        // THIRD: Manually update parent checkbox states based on children
+        updateParentCheckboxStatesManually('#variables-tree');
+        updateParentCheckboxStatesManually('#styles-tree');
+
+        // FOURTH: Generate code based on restored selections
+        setTimeout(() => {
+          generateCodeFromCurrentSelections();
+        }, 100);
+
+        console.log('UI state restoration completed');
+
+      } catch (error) {
+        console.error('Error restoring UI state:', error);
+      } finally {
+        // Clear the saved state after restoration
+        savedUIState = null;
+      }
+    }
+
+    function updateParentCheckboxStatesManually(treeSelector) {
+      // Get all checkboxes in the tree
+      const allCheckboxes = document.querySelectorAll(`${treeSelector} input[type="checkbox"]`);
+      
+      // Process from bottom up to ensure parents are updated after children
+      const checkboxArray = Array.from(allCheckboxes);
+      
+      // Sort by depth (deeper elements first) to process children before parents
+      checkboxArray.sort((a, b) => {
+        const aDepth = a.getAttribute('data-path').split('.').length;
+        const bDepth = b.getAttribute('data-path').split('.').length;
+        return bDepth - aDepth; // Higher depth first
+      });
+      
+      checkboxArray.forEach(checkbox => {
+        updateParentCheckbox(checkbox);
+      });
+    }
+
+    function generateCodeFromCurrentSelections() {
+      try {
+        // Determine which tab is active and generate appropriate code
+        const activeMainTab = document.querySelector('.tab-wrapper .tab-button.active');
+        if (!activeMainTab) {
+          console.log('No active main tab found');
+          return;
+        }
+
+        const activeTabTarget = activeMainTab.getAttribute('data-target');
+        console.log('Generating code for active tab:', activeTabTarget);
+
+        if (activeTabTarget === 'variables-view') {
+          // Generate variables code
+          console.log('Generating variables code...');
+          
+          // Check if we have any selected variables
+          const selectedVariableCheckboxes = document.querySelectorAll('#variables-tree input[type="checkbox"]:checked');
+          console.log('Found selected variable checkboxes:', selectedVariableCheckboxes.length);
+          
+          if (selectedVariableCheckboxes.length > 0) {
+            const selectedPayload = generateFilteredPayload();
+            console.log('Generated filtered payload:', selectedPayload);
+            updateJsonView(selectedPayload);
+            requestGeneratedCode();
+          } else {
+            console.log('No variable checkboxes selected, clearing views');
+            // Clear the views if nothing is selected
+            clearCodeViews();
+          }
+          
+        } else if (activeTabTarget === 'styles-view') {
+          // Generate styles code
+          console.log('Generating styles code...');
+          
+          // Check if we have any selected styles
+          const selectedStyleCheckboxes = document.querySelectorAll('#styles-tree input[type="checkbox"]:checked');
+          console.log('Found selected style checkboxes:', selectedStyleCheckboxes.length);
+          
+          if (selectedStyleCheckboxes.length > 0) {
+            const selectedStylesPayload = generateFilteredStylesPayload();
+            console.log('Generated filtered styles payload:', selectedStylesPayload);
+            updateJsonView(selectedStylesPayload, true); // true indicates styles
+            requestGeneratedStylesCode();
+          } else {
+            console.log('No style checkboxes selected, clearing views');
+            // Clear the views if nothing is selected
+            clearCodeViews();
+          }
+        }
+        
+        console.log('Code generation completed for current selections');
+        
+      } catch (error) {
+        console.error('Error in generateCodeFromCurrentSelections:', error);
+      }
+    }
+
+    function clearCodeViews() {
+      // Clear JSON view
+      const jsonViewer = document.querySelector('#json-code-content .json-viewer');
+      const jsonMessage = document.querySelector('#json-initial-message');
+      if (jsonViewer && jsonMessage) {
+        jsonViewer.style.display = 'none';
+        jsonViewer.textContent = '';
+        jsonMessage.style.display = 'block';
+      }
+      
+      // Clear other code views
+      const codeContents = ['js-code-content', 'css-code-content', 'tailwind-code-content'];
+      codeContents.forEach(contentId => {
+        const contentEl = document.getElementById(contentId);
+        if (contentEl) {
+          contentEl.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+        }
+      });
+    }
+
+    function requestGeneratedCode() {
+      // Request all code types for variables
+      parent.postMessage({ pluginMessage: { type: 'request-js-code' } }, '*');
+      parent.postMessage({ pluginMessage: { type: 'request-css-code' } }, '*');
+      parent.postMessage({ pluginMessage: { type: 'request-tailwind-code' } }, '*');
+    }
+
+    function requestGeneratedStylesCode() {
+      // Request code generation for styles
+      const filteredPayload = generateFilteredStylesPayload();
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-styles-js-code',
+          payload: filteredPayload
+        } 
+      }, '*');
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-styles-css-code',
+          payload: filteredPayload
+        } 
+      }, '*');
+    }
   </script>
 
   <!-- Export to GitHub Modal -->
