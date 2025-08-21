@@ -19,6 +19,9 @@
       --tab-active-text-color: #FFFFFF;
       --tab-active-opacity: 1;
       --tab-active-bg: #3C3C3C; 
+      /* Add new variables for the warning banner */
+      --warning-banner-bg: #4E3534; /* Updated darker red background */
+      --warning-banner-text: #FADEDC; /* Updated light pink/peach text */
     }
 
     body {
@@ -51,7 +54,8 @@
         gap: 2px; /* Gap applied here, as in Figma's inner Frame 7 */
     }
 
-    .tab-wrapper .tab-button { /* Specificity remains sufficient */
+    /* Base styles for all tab buttons */
+    .tab-button {
       padding: var(--tab-button-padding);
       border-radius: var(--tab-button-radius);
       font-family: var(--tab-button-font);
@@ -68,14 +72,16 @@
       transition: background-color 0.2s, color 0.2s, opacity 0.2s;
     }
 
-    .tab-wrapper .tab-button.active { /* Increased specificity */
+    /* Active state for all tab buttons */
+    .tab-button.active {
       color: var(--tab-active-text-color);
       opacity: var(--tab-active-opacity);
       background-color: var(--tab-active-bg);
     }
 
-    .tab-wrapper .tab-button:hover:not(.active) { /* Increased specificity */
-       /* Use active style for hover based on Figma */
+    /* Hover state for all non-active tab buttons */
+    .tab-button:hover:not(.active) {
+      /* Use active style for hover based on Figma */
       color: var(--tab-active-text-color);
       opacity: var(--tab-active-opacity);
       background-color: var(--tab-active-bg);
@@ -148,64 +154,6 @@
       gap: 12px; /* Added for internal layout */
     }
 
-    /* Tree view styles */
-    .tree-item {
-      margin-bottom: 4px;
-      cursor: pointer;
-    }
-
-    .tree-item-header {
-      display: flex;
-      align-items: center;
-      padding: 4px 8px;
-      border-radius: 4px;
-      user-select: none;
-    }
-
-    .tree-item-header:hover {
-      background-color: var(--tab-active-bg);
-    }
-
-    .tree-item-header.selected {
-      background-color: var(--tab-active-bg);
-      font-weight: bold;
-    }
-
-    .tree-item-toggle {
-      margin-right: 4px;
-      transform: rotate(0deg);
-      transition: transform 0.2s;
-    }
-
-    .tree-item-toggle.open {
-      transform: rotate(90deg);
-    }
-
-    .tree-item-children {
-      margin-left: 16px;
-      display: none;
-    }
-
-    .tree-item-children.open {
-      display: block;
-    }
-
-    /* Spinner for loading state */
-    .spinner {
-      width: 40px;
-      height: 40px;
-      margin: 20px auto;
-      border: 3px solid rgba(255, 255, 255, 0.3);
-      border-radius: 50%;
-      border-top-color: var(--figma-color-text);
-      animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
     /* JSON viewer styles */
     /* Output Area Header styles */
     #output-area-header {
@@ -238,30 +186,195 @@
       width: 100%;
       height: 100%;
       overflow-y: auto;
+      padding: 12px;
+      box-sizing: border-box;
     }
 
     .output-code-content.active {
       display: block;
     }
 
-    /* JSON viewer styles */
-    pre.json-viewer {
-      padding: 12px;
-      font-size: 12px;
-      line-height: 1.5;
-      color: var(--figma-color-text);
+    /* Add styling for the json-viewer */
+    .json-viewer {
       margin: 0;
+      padding: 0;
+      font-family: 'Geist Mono', 'Roboto Mono', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      white-space: pre-wrap;
     }
 
-    .json-viewer .string { color: #CE9178; }
-    .json-viewer .number { color: #B5CEA8; }
-    .json-viewer .boolean { color: #569CD6; }
-    .json-viewer .null { color: #569CD6; }
-    .json-viewer .key { color: #9CDCFE; }
-    .json-viewer .alias-path { color: #DCDCAA; }
+    /* Checkbox tree styles */
+    .checkbox-tree {
+      list-style-type: none;
+      padding-left: 0;
+      margin: 0;
+      font-family: 'Geist Mono', 'Roboto Mono', monospace;
+      font-size: 11px;
+    }
+
+    .checkbox-tree ul {
+      list-style-type: none;
+      padding-left: 16px; /* Changed from 20px to 16px */
+      margin: 0;
+      /* Add display: none by default for collapsed state */
+      display: none;
+    }
+
+    /* Show children when parent has expanded class */
+    .checkbox-tree li.expanded > ul {
+      display: block;
+    }
+
+    .checkbox-tree li {
+      margin: 4px 0; /* Reduced from 6px to 4px in y-axis */
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      /* Add justify-content to position chevron on the right */
+      justify-content: space-between;
+      cursor: pointer;
+      padding: 2px; /* Add 2px padding all around */
+      border-radius: 4px; /* Add 4px corner radius */
+      transition: background-color 0.2s ease; /* Smooth transition for hover effect */
+    }
+
+    /* Add hover state for checkbox-item */
+    .checkbox-item:hover {
+      background-color: #282828; /* Background color on hover */
+    }
+
+    .checkbox-label {
+      margin-left: 6px;
+      cursor: pointer;
+      user-select: none; /* Prevent text selection */
+      color: var(--figma-color-text);
+    }
+
+    /* Checkbox & label container */
+    .checkbox-label-container {
+      display: flex;
+      align-items: center;
+    }
+
+    /* Chevron styles */
+    .chevron-icon {
+      width: 12px;
+      height: 12px;
+      transition: transform 0.2s ease;
+      opacity: 0;
+    }
+
+    /* Show chevron on hover for collapsed items */
+    .checkbox-item:hover .chevron-icon {
+      opacity: 0.8;
+    }
+
+    /* Always show chevron for expanded items */
+    .expanded > .checkbox-item .chevron-icon {
+      opacity: 0.8;
+      transform: rotate(0deg);
+    }
+
+    /* Rotate chevron for collapsed items */
+    .chevron-icon {
+      transform: rotate(-90deg);
+    }
+
+    /* Custom checkbox styling to match Figma's design */
+    .checkbox-tree input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border: 1px solid #666;
+      border-radius: 4px;
+      background-color: transparent;
+      display: inline-block;
+      position: relative;
+      cursor: pointer;
+      vertical-align: middle;
+    }
+
+    .checkbox-tree input[type="checkbox"]:checked {
+      background-color: #ffffff;
+      border-color: #ffffff;
+    }
+
+    .checkbox-tree input[type="checkbox"]:checked::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 1px;
+      width: 3px;
+      height: 6px;
+      border: solid rgb(0, 0, 0);
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    .checkbox-tree input[type="checkbox"]:indeterminate {
+      background-color: #272727;
+      
+    }
+
+    .checkbox-tree input[type="checkbox"]:indeterminate::after {
+      content: '';
+      position: absolute;
+      top: 5px;
+      right: 3.5px;
+      width: 5px;
+      height: 2px;
+      background-color: white;
+    }
+
+    /* New styles for the warning banner */
+    .warning-banner {
+      background-color: var(--warning-banner-bg);
+      color: var(--warning-banner-text);
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 10px;
+      line-height: 1.6;
+      display: none; /* Hidden by default */
+      position: relative; /* For positioning the close button */
+    }
+
+    .warning-banner p {
+      margin: 0;
+      padding-right: 20px; /* Space for the close button */
+    }
+
+    .warning-banner .close-btn {
+      position: absolute;
+      top: 16px;
+      right: 10px;
+      background: none;
+      border: none;
+      color: var(--warning-banner-text);
+      font-size: 18px;
+      font-weight: 500;
+      cursor: pointer;
+      opacity: 0.7;
+    }
+    .warning-banner .close-btn:hover {
+      opacity: 1;
+    }
+    /* End of new styles for warning banner */
+
   </style>
 </head>
 <body>
+  <!-- Remove the warning banner from here -->
+  <!--
+  <div id="global-warning-banner" class="warning-banner">
+    <p id="global-warning-message"></p>
+    <button class="close-btn" onclick="document.getElementById('global-warning-banner').style.display = 'none';">&times;</button>
+  </div>
+  -->
+
   <div class="container">
     <!-- The old header is hidden -->
     <!-- <div class="header">...</div> -->
@@ -293,29 +406,43 @@
             <div id="output-area-header">
               <div class="tab-button-group"> <!-- For JSON, CSS, Tailwind tabs -->
                 <button class="tab-button output-tab-button active" data-target="json-code-content">JSON</button>
+                <button class="tab-button output-tab-button" data-target="js-code-content">Js</button>
                 <button class="tab-button output-tab-button" data-target="css-code-content">CSS</button>
                 <button class="tab-button output-tab-button" data-target="tailwind-code-content">Tailwind</button>
               </div>
               <div class="action-button-group"> <!-- For Download and Copy buttons -->
+                <button class="tab-button" id="export-github-btn">Export to Github</button>
                 <button class="tab-button" id="download-code-btn">Download code</button>
                 <button class="tab-button" id="copy-code-btn">Copy to clipboard</button>
               </div>
+            </div>
+
+            <!-- Add the warning banner here, between header and code output -->
+            <div id="global-warning-banner" class="warning-banner">
+              <p id="global-warning-message">Some variable aliases couldn't be resolved due to missing libraries — please enable all required Figma libraries and restart the plugin.</p>
+              <button class="close-btn" onclick="document.getElementById('global-warning-banner').style.display = 'none';">&times;</button>
             </div>
 
             <!-- Output Area Code (scrollable content) -->
             <div id="output-area-code">
               <!-- JSON Content Pane -->
               <div id="json-code-content" class="output-code-content active">
-                <p id="json-initial-message" style="padding: 12px; margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+                <!-- Remove the warning banner from here -->
+                
+                <p id="json-initial-message" style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
                 <pre class="json-viewer" style="display: none;"></pre> <!-- JSON code will go here -->
+              </div>
+              <!-- Js Content Pane (Placeholder) -->
+              <div id="js-code-content" class="output-code-content">
+                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
               </div>
               <!-- CSS Content Pane (Placeholder) -->
               <div id="css-code-content" class="output-code-content">
-                <p style="padding: 12px; margin: 0;">CSS output will appear here.</p>
+                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
               </div>
               <!-- Tailwind Content Pane (Placeholder) -->
               <div id="tailwind-code-content" class="output-code-content">
-                <p style="padding: 12px; margin: 0;">Tailwind output will appear here.</p>
+                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
               </div>
             </div>
           </div>
@@ -350,9 +477,9 @@
     </div>
   </div>
   <script>
-    // Global state
-    let variablesData = null;
-
+    // Store the original DTCG payload
+    let originalDtcgPayload = null;
+    
     // Document ready event
     document.addEventListener('DOMContentLoaded', function () {
       // Main tab switching logic
@@ -360,6 +487,23 @@
       const tabContents = document.querySelectorAll('.tab-content');
 
       tabButtons.forEach(button => {
+        // Use passive option for touch events to improve scrolling performance
+        button.addEventListener('touchstart', () => {
+          // Deactivate all buttons and hide all content
+          tabButtons.forEach(btn => btn.classList.remove('active'));
+          tabContents.forEach(content => content.classList.remove('active'));
+
+          // Activate the clicked button
+          button.classList.add('active');
+
+          // Show the target content
+          const targetId = button.getAttribute('data-target');
+          const targetContent = document.getElementById(targetId);
+          if (targetContent) {
+            targetContent.classList.add('active');
+          }
+        }, { passive: true });
+
         button.addEventListener('click', () => {
           // Deactivate all buttons and hide all content
           tabButtons.forEach(btn => btn.classList.remove('active'));
@@ -380,46 +524,434 @@
       // Setup the output area tabs
       setupOutputAreaTabs();
 
-      // Message handler from the plugin
-      window.onmessage = event => {
-        const message = event.data.pluginMessage;
-        
-        if (!message) return;
-        
-        if (message.type === 'plugin-ready') {
-          console.log('Plugin is ready, fetching variables');
-          parent.postMessage({ pluginMessage: { type: 'fetch-variables' } }, '*');
-        }
-        else if (message.type === 'variables-data') {
-          console.log('Received variables data');
-          variablesData = message.payload;
-          hideSpinner();
-          displayVariablesData();
-        }
-        else if (message.type === 'error') {
-          console.error('Error:', message.message);
-          hideSpinner();
-          document.getElementById('variables-tree').innerHTML = `
-            <div style="color: red; padding: 10px;">
-              Error fetching variables: ${message.message}
-            </div>
-          `;
+      // Setup download and copy button functionality
+      setupActionButtons();
+
+      // Simplified message handler - properly handle real data and display it
+      window.onmessage = async (event) => {
+        const msg = event.data.pluginMessage;
+        if (!msg) return;
+
+        if (msg.type === 'plugin-info') {
+          console.log(msg.payload.message);
+        } else if (msg.type === 'dtcgPayload') {
+          // console.log("Received dtcgPayload:", msg.payload); // Removed logging
+          originalDtcgPayload = msg.payload; // Store the full payload
+          renderCheckboxTree(msg.payload);
+        } else if (msg.type === 'jsCodePreview') {
+          // console.log("Received jsCodePreview:", msg.payload); // Removed logging
+          updateJSView(msg.payload);
+        } else if (msg.type === 'cssCodePreview') {
+          // console.log("Received cssCodePreview:", msg.payload); // Removed logging
+          updateCSSView(msg.payload);
+        } else if (msg.type === 'tailwindCodePreview') {
+          // console.log("Received tailwindCodePreview:", msg.payload); // Removed logging
+          updateTailwindView(msg.payload);
+        } else if (msg.type === 'error') {
+          console.error("Error from plugin:", msg.message);
+          // Display error in UI if needed
+        } else if (msg.type === 'warning-potential-missing-source') {
+          console.warn("Warning from plugin:", msg.payload.message);
+          console.warn("Warning details:", msg.payload.details);
+          
+          const banner = document.getElementById('global-warning-banner');
+          const messageEl = document.getElementById('global-warning-message');
+          if (banner && messageEl) {
+            // Use the improved message from the plugin
+            let displayMessage = msg.payload.message;
+            
+            // Add additional context if details are available
+            if (msg.payload.details) {
+              const details = msg.payload.details;
+              displayMessage += ` (${details.localVariables} local, ${details.sharedVariables} shared variables loaded)`;
+            }
+            
+            messageEl.textContent = displayMessage;
+            banner.style.display = 'block';
+          }
         }
       };
     });
 
-    // Utility functions
-    function hideSpinner() {
-      const spinner = document.querySelector('.spinner');
-      if (spinner) spinner.style.display = 'none';
+    // Function to render the checkbox tree from DTCG payload
+    function renderCheckboxTree(payload) {
+      const treeContainer = document.getElementById('variables-tree');
+      treeContainer.innerHTML = ''; // Clear existing content
+      
+      // Create the root UL element for the tree
+      const rootUl = document.createElement('ul');
+      rootUl.className = 'checkbox-tree';
+      
+      // Handle empty payload
+      if (!payload || Object.keys(payload).length === 0) {
+        treeContainer.innerHTML = `
+          <div style="padding: 10px;">
+            No variables found. Please ensure your Figma file contains variables.
+          </div>
+        `;
+        return;
+      }
+      
+      // Generate tree structure recursively
+      generateTreeNodes(payload, rootUl);
+      
+      // Append the tree to the container
+      treeContainer.appendChild(rootUl);
+      
+      // Initialize JSON view with empty object to show the "select items" message
+      updateJsonView({});
     }
+    
+    // Recursive function to generate tree nodes
+    function generateTreeNodes(data, parentElement, path = []) {
+      // Process each key-value pair in the current object
+      for (const key in data) {
+        const value = data[key];
+        const currentPath = [...path, key];
+        
+        // Create list item
+        const li = document.createElement('li');
+        li.setAttribute('data-path', currentPath.join('.'));
+        
+        // Create checkbox item wrapper
+        const checkboxItem = document.createElement('div');
+        checkboxItem.className = 'checkbox-item';
+        
+        // Create checkbox label container
+        const checkboxLabelContainer = document.createElement('div');
+        checkboxLabelContainer.className = 'checkbox-label-container';
+        
+        // Create checkbox
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `checkbox-${currentPath.join('-')}`;
+        checkbox.setAttribute('data-path', currentPath.join('.'));
+        
+        // Create label
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        label.htmlFor = checkbox.id;
+        label.textContent = key;
+        
+        // Add title for tooltip on hover (include full path for context)
+        label.title = currentPath.join(' > ');
+        
+        // Add checkbox and label to container
+        checkboxLabelContainer.appendChild(checkbox);
+        checkboxLabelContainer.appendChild(label);
+        
+        // Add container to item wrapper
+        checkboxItem.appendChild(checkboxLabelContainer);
+        
+        // Determine if this is a token or a group
+        const isToken = value && typeof value === 'object' && '$type' in value && '$value' in value;
+        const isGroup = value && typeof value === 'object' && !isToken;
+        
+        if (isGroup) {
+          // This is a branch node with children
+          
+          // Create chevron for group
+          const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          chevron.setAttribute('width', '12');
+          chevron.setAttribute('height', '12');
+          chevron.setAttribute('viewBox', '0 0 12 12');
+          chevron.setAttribute('fill', 'none');
+          chevron.classList.add('chevron-icon');
+          
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', 'M3 4.5L6 7.5L9 4.5');
+          path.setAttribute('stroke', 'white');
+          path.setAttribute('stroke-opacity', '0.8');
+          path.setAttribute('stroke-linecap', 'round');
+          path.setAttribute('stroke-linejoin', 'round');
+          
+          chevron.appendChild(path);
+          checkboxItem.appendChild(chevron);
+          
+          // Create child list
+          const ul = document.createElement('ul');
+          li.appendChild(checkboxItem);
+          li.appendChild(ul);
+          
+          // Recursively generate children
+          generateTreeNodes(value, ul, currentPath);
+          
+          // Setup event listener for this checkbox
+          checkbox.addEventListener('change', function(event) {
+            handleCheckboxChange(event.target);
+          });
+          
+          // Add click event for expanding/collapsing
+          checkboxItem.addEventListener('click', function(e) {
+            // Prevent this from triggering when clicking the checkbox directly
+            if (e.target !== checkbox) {
+              e.preventDefault();
+              li.classList.toggle('expanded');
+              e.stopPropagation();
+            }
+          });
+        } else {
+          // This is a leaf node (token)
+          li.appendChild(checkboxItem);
+          checkbox.addEventListener('change', function(event) {
+            handleCheckboxChange(event.target);
+          });
+          
+          // Add click event for toggling checkbox on leaf nodes
+          checkboxItem.addEventListener('click', function(e) {
+            // Prevent this from triggering when clicking the checkbox directly
+            if (e.target !== checkbox) {
+              e.preventDefault();
+              checkbox.checked = !checkbox.checked;
+              // Trigger the change event manually
+              const changeEvent = new Event('change', { bubbles: true });
+              checkbox.dispatchEvent(changeEvent);
+              e.stopPropagation();
+            }
+          });
+        }
+        
+        // Add the list item to the parent element
+        parentElement.appendChild(li);
+      }
+    }
+    
+    // Handle checkbox change events
+    function handleCheckboxChange(checkbox) {
+      const isChecked = checkbox.checked;
+      
+      // Propagate state to children (if any)
+      propagateStateToChildren(checkbox, isChecked);
+      
+      // Update parent states
+      updateParentStates(checkbox);
+      
+      // Generate filtered DTCG payload based on current checkbox selections
+      const filteredDtcg = generateFilteredDtcgPayload();
+      
+      // Update the JSON view with the filtered payload
+      updateJsonView(filteredDtcg);
+      
+      // If JS tab is active, also update the JS view
+      const jsTab = document.querySelector('[data-target="js-code-content"]');
+      if (jsTab && jsTab.classList.contains('active')) {
+        // Request JS code generation with the filtered payload
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'request-js-code',
+            payload: filteredDtcg
+          } 
+        }, '*');
+      }
+      
+      // If CSS tab is active, also update the CSS view
+      const cssTab = document.querySelector('[data-target="css-code-content"]');
+      if (cssTab && cssTab.classList.contains('active')) {
+        // Request CSS code generation with the filtered payload
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'request-css-code',
+            payload: filteredDtcg
+          } 
+        }, '*');
+      }
+      
+      // If Tailwind tab is active, also update the Tailwind view
+      const tailwindTab = document.querySelector('[data-target="tailwind-code-content"]');
+      if (tailwindTab && tailwindTab.classList.contains('active')) {
+        // Request Tailwind code generation with the filtered payload
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'request-tailwind-code',
+            payload: filteredDtcg
+          } 
+        }, '*');
+      }
+    }
+    
+    // Generate filtered DTCG payload based on checkbox selections
+    function generateFilteredDtcgPayload() {
+      if (!originalDtcgPayload) {
+        return {}; // Safety check
+      }
 
+      const filteredOutput = {};
+      
+      // Process each top-level collection
+      for (const collectionName of Object.keys(originalDtcgPayload)) {
+        // Process this collection recursively
+        const filteredCollection = processNodeRecursively(
+          originalDtcgPayload[collectionName],
+          [collectionName]
+        );
+        
+        // Only add non-null results to the output
+        if (filteredCollection !== null) {
+          filteredOutput[collectionName] = filteredCollection;
+        }
+      }
+      
+      return filteredOutput;
+    }
+    
+    /**
+     * Recursively processes a node and its children based on checkbox states
+     * @param {Object} nodeData - The data for this node from the original payload
+     * @param {Array} path - Array of strings representing the path to this node
+     * @returns {Object|null} - Filtered data or null if this node should be excluded
+     */
+    function processNodeRecursively(nodeData, path) {
+      // Get the checkbox for this node
+      const checkbox = findCheckboxByPath(path);
+      
+      // If checkbox doesn't exist or is unchecked, exclude this branch
+      if (!checkbox || (!checkbox.checked && !checkbox.indeterminate)) {
+        return null;
+      }
+      
+      // If this node is a leaf (has $type and $value)
+      if (nodeData && typeof nodeData === 'object' && nodeData.$type && nodeData.$value !== undefined) {
+        // For leaf nodes, only include if explicitly checked
+        return checkbox.checked ? JSON.parse(JSON.stringify(nodeData)) : null;
+      }
+      
+      // If the checkbox is checked (not just indeterminate), include the entire subtree
+      if (checkbox.checked) {
+        return JSON.parse(JSON.stringify(nodeData));
+      }
+      
+      // For indeterminate state, we need to selectively include children
+      if (checkbox.indeterminate && typeof nodeData === 'object') {
+        const result = {};
+        let hasSelectedChildren = false;
+        
+        // Process each child
+        for (const childName of Object.keys(nodeData)) {
+          const childPath = [...path, childName];
+          const filteredChild = processNodeRecursively(nodeData[childName], childPath);
+          
+          // Only include non-null results
+          if (filteredChild !== null) {
+            result[childName] = filteredChild;
+            hasSelectedChildren = true;
+          }
+        }
+        
+        // Return the result if it has any selected children, otherwise null
+        return hasSelectedChildren ? result : null;
+      }
+      
+      // Default fallback
+      return null;
+    }
+    
+    /**
+     * Finds a checkbox element by its path
+     * @param {Array} path - Array of string segments representing the path
+     * @returns {HTMLElement|null} - The checkbox element or null if not found
+     */
+    function findCheckboxByPath(path) {
+      if (!path || !path.length) return null;
+      
+      // Build the path string used in the data-path attribute
+      const pathString = path.join('.');
+      
+      // Try to find the checkbox directly using the path
+      return document.querySelector(
+        `input[type="checkbox"][data-path="${pathString}"]`
+      );
+    }
+    
+    // Propagate checkbox state to all children
+    function propagateStateToChildren(checkbox, isChecked) {
+      // Find the parent <li> of this checkbox
+      const li = checkbox.closest('li');
+      
+      // Find all child checkboxes within this <li>
+      const childCheckboxes = li.querySelectorAll('ul input[type="checkbox"]');
+      
+      // Set each child's checked state to match the parent
+      childCheckboxes.forEach(childCheckbox => {
+        childCheckbox.checked = isChecked;
+        childCheckbox.indeterminate = false;
+      });
+    }
+    
+    // Update the state of all parent checkboxes
+    function updateParentStates(checkbox) {
+      // Find the parent <li> of this checkbox
+      const li = checkbox.closest('li');
+      
+      // Get the parent <ul> and then its parent <li> (if any)
+      const parentUl = li.parentElement;
+      if (parentUl && parentUl.parentElement && parentUl.parentElement.tagName === 'LI') {
+        const parentLi = parentUl.parentElement;
+        const parentCheckbox = parentLi.querySelector('.checkbox-label-container > input[type="checkbox"]');
+        
+        // Check the state of all sibling checkboxes
+        const siblingCheckboxes = Array.from(parentUl.querySelectorAll('li > .checkbox-item > .checkbox-label-container > input[type="checkbox"]'));
+        
+        // Count checked and total checkboxes
+        const totalSiblings = siblingCheckboxes.length;
+        const checkedSiblings = siblingCheckboxes.filter(cb => cb.checked).length;
+        
+        if (checkedSiblings === 0) {
+          // None checked
+          parentCheckbox.checked = false;
+          parentCheckbox.indeterminate = false;
+        } else if (checkedSiblings === totalSiblings) {
+          // All checked
+          parentCheckbox.checked = true;
+          parentCheckbox.indeterminate = false;
+        } else {
+          // Some checked
+          parentCheckbox.checked = false;
+          parentCheckbox.indeterminate = true;
+        }
+        
+        // Recursively update higher parent levels
+        updateParentStates(parentCheckbox);
+      }
+    }
+    
     // Setup tabs for the output area
     function setupOutputAreaTabs() {
       const outputTabButtons = document.querySelectorAll('#output-area-header .tab-button-group .tab-button');
       const outputTabContents = document.querySelectorAll('#output-area-code .output-code-content');
 
       outputTabButtons.forEach(button => {
+        // Use passive option for touch events to improve scrolling performance
+        button.addEventListener('touchstart', () => {
+          // Deactivate all output tabs and hide all output content
+          outputTabButtons.forEach(btn => btn.classList.remove('active'));
+          outputTabContents.forEach(content => content.classList.remove('active'));
+
+          // Activate the clicked button
+          button.classList.add('active');
+
+          // Show the target content
+          const targetId = button.getAttribute('data-target');
+          const targetContent = document.getElementById(targetId);
+          if (targetContent) {
+            targetContent.classList.add('active');
+          }
+          
+          // Handle JS tab specific logic
+          if (targetId === 'js-code-content') {
+            handleJSTabActivation();
+          }
+          
+          // Handle CSS tab specific logic
+          if (targetId === 'css-code-content') {
+            handleCSSTabActivation();
+          }
+          
+          // Handle Tailwind tab specific logic
+          if (targetId === 'tailwind-code-content') {
+            handleTailwindTabActivation();
+          }
+        }, { passive: true });
+
         button.addEventListener('click', () => {
           // Deactivate all output tabs and hide all output content
           outputTabButtons.forEach(btn => btn.classList.remove('active'));
@@ -434,112 +966,310 @@
           if (targetContent) {
             targetContent.classList.add('active');
           }
+          
+          // Handle JS tab specific logic
+          if (targetId === 'js-code-content') {
+            handleJSTabActivation();
+          }
+          
+          // Handle CSS tab specific logic
+          if (targetId === 'css-code-content') {
+            handleCSSTabActivation();
+          }
+          
+          // Handle Tailwind tab specific logic
+          if (targetId === 'tailwind-code-content') {
+            handleTailwindTabActivation();
+          }
         });
       });
 
-      // Setup action buttons
+      // Removing unused event listeners for action buttons that are placeholder only
+      // These were causing console warnings without providing functionality
+    }
+    
+    // Handle JS tab activation
+    function handleJSTabActivation() {
+      // Generate the filtered DTCG payload based on current selections
+      const filteredDtcg = generateFilteredDtcgPayload();
+      
+      // Request JS code generation from the plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-js-code',
+          payload: filteredDtcg
+        } 
+      }, '*');
+    }
+    
+    // Handle CSS tab activation
+    function handleCSSTabActivation() {
+      // Generate the filtered DTCG payload based on current selections
+      const filteredDtcg = generateFilteredDtcgPayload();
+      
+      // Request CSS code generation from the plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-css-code',
+          payload: filteredDtcg
+        } 
+      }, '*');
+    }
+    
+    // Handle Tailwind tab activation
+    function handleTailwindTabActivation() {
+      // Generate the filtered DTCG payload based on current selections
+      const filteredDtcg = generateFilteredDtcgPayload();
+      
+      // Request Tailwind code generation from the plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-tailwind-code',
+          payload: filteredDtcg
+        } 
+      }, '*');
+    }
+    
+    // Update the JSON view with the current payload
+    function updateJsonView(payload) {
+      const jsonViewer = document.querySelector('.json-viewer');
+      const initialMessage = document.getElementById('json-initial-message');
+      
+      if (jsonViewer && initialMessage) {
+        if (payload && Object.keys(payload).length > 0) {
+          // Hide the initial message and show the JSON viewer
+          initialMessage.style.display = 'none';
+          jsonViewer.style.display = 'block';
+          
+          // Format the JSON with 2-space indentation
+          jsonViewer.textContent = JSON.stringify(payload, null, 2);
+        } else {
+          // Payload is empty - show initial message
+          initialMessage.style.display = 'block';
+          jsonViewer.style.display = 'none';
+          jsonViewer.textContent = ''; // Clear any previous JSON
+        }
+      }
+    }
+    
+    // Update the JS view with the current payload  
+    function updateJSView(jsPayload) {
+      const jsCodeContent = document.getElementById('js-code-content');
+      
+      if (jsCodeContent) {
+        // Handle the new payload structure with both code and structure
+        if (jsPayload && typeof jsPayload === 'object' && jsPayload.code) {
+          const jsCode = jsPayload.code;
+          const structure = jsPayload.structure;
+          
+          if (jsCode && jsCode.trim() !== '{}') {
+            // Create a container with two sections: structure and code
+            jsCodeContent.innerHTML = `
+              <div style="display: flex; flex-direction: column; height: 100%; gap: 12px;">
+                <div style="flex: 1; min-height: 0;">
+                  <h4 style="margin: 0 0 8px 0; color: #A0A0A0; font-size: 11px; font-weight: 500;">Object Structure</h4>
+                  <div style="background: #2C2C2C; border-radius: 4px; padding: 12px; height: calc(100% - 32px); overflow-y: auto;">
+                    <pre class="json-viewer" style="margin: 0;">${JSON.stringify(structure, null, 2)}</pre>
+                  </div>
+                </div>
+                <div style="flex: 1; min-height: 0;">
+                  <h4 style="margin: 0 0 8px 0; color: #A0A0A0; font-size: 11px; font-weight: 500;">Generated JavaScript Code</h4>
+                  <div style="background: #2C2C2C; border-radius: 4px; padding: 12px; height: calc(100% - 32px); overflow-y: auto;">
+                    <pre class="json-viewer" style="margin: 0;">${jsCode}</pre>
+                  </div>
+                </div>
+              </div>
+            `;
+          } else {
+            // Show placeholder message
+            jsCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+          }
+        } else if (typeof jsPayload === 'string') {
+          // Handle legacy string payload (fallback)
+          if (jsPayload && jsPayload.trim() !== '{}') {
+            jsCodeContent.innerHTML = `<pre class="json-viewer">${jsPayload}</pre>`;
+          } else {
+            jsCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+          }
+        } else {
+          // Show placeholder message
+          jsCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+        }
+      }
+    }
+    
+    // Update the CSS view with the current payload
+    function updateCSSView(payload) {
+      const cssCodeContent = document.getElementById('css-code-content');
+      
+      if (cssCodeContent) {
+        if (payload && payload.code && payload.code.trim() !== '') {
+          // Simply show the CSS code directly, like JS does
+          cssCodeContent.innerHTML = `<pre class="json-viewer">${payload.code}</pre>`;
+        } else {
+          // Show placeholder message
+          cssCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+        }
+      }
+    }
+    
+    // Update the Tailwind view with the current payload
+    function updateTailwindView(payload) {
+      const tailwindCodeContent = document.getElementById('tailwind-code-content');
+      
+      if (tailwindCodeContent) {
+        if (payload && payload.code && payload.code.trim() !== '') {
+          // Simply show the Tailwind code directly, like JS and CSS do
+          tailwindCodeContent.innerHTML = `<pre class="json-viewer">${payload.code}</pre>`;
+        } else {
+          // Show placeholder message
+          tailwindCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+        }
+      }
+    }
+
+    // Setup download and copy button functionality
+    function setupActionButtons() {
       const downloadBtn = document.getElementById('download-code-btn');
       const copyBtn = document.getElementById('copy-code-btn');
+      const exportBtn = document.getElementById('export-github-btn');
 
       if (downloadBtn) {
         downloadBtn.addEventListener('click', () => {
-          const activeOutputTab = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
-          const activeContentId = activeOutputTab ? activeOutputTab.dataset.target : 'none';
-          console.log(`Download code button clicked. Active code view: ${activeContentId}`);
-          // TODO: Implement actual download logic
+          const data = getActiveCodeTabData();
+          if (data) {
+            // Create temporary anchor for download
+            const blob = new Blob([data.content], { type: data.mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = data.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }
         });
       }
 
       if (copyBtn) {
-        copyBtn.addEventListener('click', () => {
-          const activeOutputTab = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
-          const activeContentId = activeOutputTab ? activeOutputTab.dataset.target : 'none';
-          console.log(`Copy to clipboard clicked. Active code view: ${activeContentId}`);
-          // TODO: Implement copy to clipboard logic
+        copyBtn.addEventListener('click', async () => {
+          const data = getActiveCodeTabData();
+          if (data) {
+            let copySuccess = false;
+            
+            try {
+              // Primary method: Use legacy execCommand (more reliable in plugin contexts)
+              const textarea = document.createElement('textarea');
+              textarea.value = data.content;
+              textarea.style.position = 'fixed';
+              textarea.style.left = '-999999px';
+              textarea.style.top = '-999999px';
+              document.body.appendChild(textarea);
+              textarea.focus();
+              textarea.select();
+              
+              copySuccess = document.execCommand('copy');
+              document.body.removeChild(textarea);
+              
+              // Fallback method: Modern Clipboard API
+              if (!copySuccess && navigator.clipboard) {
+                await navigator.clipboard.writeText(data.content);
+                copySuccess = true;
+              }
+            } catch (error) {
+              console.error('Failed to copy to clipboard:', error);
+              copySuccess = false;
+            }
+            
+            // Provide user feedback only if copy actually succeeded
+            if (copySuccess) {
+              const originalText = copyBtn.textContent;
+              copyBtn.textContent = 'Copied';
+              setTimeout(() => {
+                copyBtn.textContent = originalText;
+              }, 1000);
+            } else {
+              // Show failure feedback
+              const originalText = copyBtn.textContent;
+              copyBtn.textContent = 'Copy failed';
+              setTimeout(() => {
+                copyBtn.textContent = originalText;
+              }, 1000);
+            }
+          }
+        });
+      }
+
+      if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+          // Handle export button click
+          console.log('Export to Github button clicked');
         });
       }
     }
 
-    // Simple display of the variables data
-    function displayVariablesData() {
-      const treeContainer = document.getElementById('variables-tree');
-      const jsonContentDiv = document.getElementById('json-code-content');
-      const initialMessageEl = jsonContentDiv.querySelector('#json-initial-message');
-      const preViewerEl = jsonContentDiv.querySelector('pre.json-viewer');
-      
-      if (!variablesData || Object.keys(variablesData).length === 0) {
-        treeContainer.innerHTML = '<p>No variables found in this document.</p>';
-        initialMessageEl.textContent = 'No variables found in this document.';
-        initialMessageEl.style.display = 'block';
-        preViewerEl.style.display = 'none';
-        return;
-      }
-      
-      // Display a simple list of collections in the tree area
-      let html = '<ul>';
-      for (const collectionName in variablesData) {
-        html += `<li>${collectionName}</li>`;
-      }
-      html += '</ul>';
-      treeContainer.innerHTML = html;
-      
-      // Custom rendering for the output area
-      // We need a replacer function for JSON.stringify to handle our special alias objects
-      const replacer = (key, value) => {
-        if (value && value.__isAliasPath === true) {
-          // This is a placeholder. We need JSON.stringify to output a unique string
-          // that we can then replace with the unquoted, styled path.
-          return `ALIAS_PLACEHOLDER::${value.path}`;
-        }
-        if (value && value.__isAliasPathError === true) {
-          return `ALIAS_ERROR_PLACEHOLDER::${value.message}`;
-        }
-        return value;
-      };
+    // Helper function to get active code tab data
+    function getActiveCodeTabData() {
+      const activeTabButton = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
+      if (!activeTabButton) return null;
 
-      // First pass: Convert to JSON string with placeholders
-      let jsonString = JSON.stringify(variablesData, replacer, 2);
+      const targetId = activeTabButton.getAttribute('data-target');
+      const contentPane = document.getElementById(targetId);
+      if (!contentPane) return null;
 
-      // Post-process the string to insert the alias paths without quotes and with spans
-      jsonString = jsonString.replace(/"ALIAS_PLACEHOLDER::(.*?)"/g, (match, path) => {
-        // Check if path has our special bracket markers
-        if (path.includes('BRACKET_OPEN') && path.includes('BRACKET_CLOSE')) {
-          // Convert markers to actual bracket notation with quotes
-          let processedPath = path.replace(/\.BRACKET_OPEN(\d+)BRACKET_CLOSE/g, (match, number) => {
-            return `["${number}"]`;
-          });
+      let content = '';
+      let type = '';
+      let filename = '';
+      let mimeType = '';
+
+      switch (targetId) {
+        case 'json-code-content':
+          const jsonViewer = contentPane.querySelector('.json-viewer');
+          content = jsonViewer ? jsonViewer.textContent : '';
+          type = 'json';
+          filename = 'variables.json';
+          mimeType = 'application/json';
+          break;
+        case 'js-code-content':
+          // More robust JS content retrieval
+          // First, try to find the "Generated JavaScript Code" section (two-section structure)
+          const generatedCodeHeaders = Array.from(contentPane.querySelectorAll('h4'));
+          const generatedCodeHeader = generatedCodeHeaders.find(h => h.textContent === 'Generated JavaScript Code');
           
-          // Basic HTML safety
-          processedPath = processedPath.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          if (generatedCodeHeader && generatedCodeHeader.nextElementSibling) {
+            const codeContainer = generatedCodeHeader.nextElementSibling;
+            const codeViewer = codeContainer.querySelector('.json-viewer');
+            content = codeViewer ? codeViewer.textContent : '';
+          } else {
+            // Fallback: try to get content from a single pre element (legacy case)
+            const singleJsViewer = contentPane.querySelector('.json-viewer');
+            content = singleJsViewer ? singleJsViewer.textContent : '';
+          }
           
-          return `<span class="alias-path">${processedPath}</span>`;
-        }
-        
-        // For paths without bracket notation, just do basic escaping
-        const escapedPath = path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        return `<span class="alias-path">${escapedPath}</span>`;
-      });
-      
-      jsonString = jsonString.replace(/"ALIAS_ERROR_PLACEHOLDER::(.*?)"/g, (match, message) => {
-        const escapedMessage = message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        return `<span class="string">"${escapedMessage}"</span>`; 
-      });
-      
-      // Apply general syntax highlighting for keys, strings, numbers etc.
-      jsonString = jsonString.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")(\s*:)/g, '<span class="key">$1</span>$3'); // Keys
-      jsonString = jsonString.replace(/:\s*("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")(?!<\/span>)/g, (match, group1) => {
-        // Don't re-wrap if it's already part of an alias path span or other manual span
-        if (match.includes('class="alias-path"')) return match;
-        return ': <span class="string">' + group1 + '</span>'; // Strings
-      });
-      jsonString = jsonString.replace(/:\s*\b(true|false)\b/g, ': <span class="boolean">$1</span>'); // Booleans
-      jsonString = jsonString.replace(/:\s*\b(null)\b/g, ': <span class="null">$1</span>'); // Null
-      jsonString = jsonString.replace(/:\s*(-?\d+(\.\d+)?([eE][+-]?\d+)?)/g, ': <span class="number">$1</span>'); // Numbers
-      
-      // Hide the initial message and show the JSON content
-      initialMessageEl.style.display = 'none';
-      preViewerEl.innerHTML = jsonString;
-      preViewerEl.style.display = 'block';
+          type = 'js';
+          filename = 'variables.js';
+          mimeType = 'application/javascript';
+          break;
+        case 'css-code-content':
+          const cssViewer = contentPane.querySelector('.json-viewer');
+          content = cssViewer ? cssViewer.textContent : '';
+          type = 'css';
+          filename = 'variables.css';
+          mimeType = 'text/css';
+          break;
+        case 'tailwind-code-content':
+          const tailwindViewer = contentPane.querySelector('.json-viewer');
+          content = tailwindViewer ? tailwindViewer.textContent : '';
+          type = 'tailwind';
+          filename = 'tailwind.config.js';
+          mimeType = 'application/javascript';
+          break;
+        default:
+          return null;
+      }
+
+      return (content && content.trim() !== '') ? { content, type, filename, mimeType } : null;
     }
   </script>
 </body>
