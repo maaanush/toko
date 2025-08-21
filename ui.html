@@ -22,6 +22,17 @@
       /* Add new variables for the warning banner */
       --warning-banner-bg: #4E3534; /* Updated darker red background */
       --warning-banner-text: #FADEDC; /* Updated light pink/peach text */
+      --input-field-bg: rgba(255, 255, 255, 0.06);
+      /* Modal specific variables */
+      --modal-overlay-bg: rgba(0, 0, 0, 0.8);
+      --modal-bg: #2C2C2C; /* Same as tab-wrapper-bg */
+      --modal-input-bg: rgba(255, 255, 255, 0.12); /* Based on design opacity 0.12 */
+      --modal-tab-active-bg: rgba(255, 255, 255, 0.14); /* Based on design opacity 0.14 */
+      --modal-export-btn-bg: #00924B; /* Same as GitHub auth button */
+      /* Toggle switch variables */
+      --toggle-bg-inactive: #444444;
+      --toggle-bg-active: #00924B;
+      --toggle-slider-bg: #ffffff;
     }
 
     body {
@@ -364,6 +375,289 @@
     }
     /* End of new styles for warning banner */
 
+    /* Export Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--modal-overlay-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .export-modal {
+      width: 360px;
+      background: var(--modal-bg);
+      display: flex;
+      flex-direction: column;
+      border-radius: 0;
+    }
+
+    .modal-header {
+      height: 38px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--tab-wrapper-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .modal-header span {
+      font-size: 11px;
+      color: #F1F1F1; /* Based on design text color rgb(0.9448, 0.9448, 0.9448) */
+      font-weight: 500;
+    }
+
+    .modal-close-btn {
+      background: none;
+      border: none;
+      color: var(--figma-color-text);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0;
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+
+    .modal-close-btn:hover {
+      opacity: 1;
+    }
+
+    .modal-body {
+      padding: 12px;
+      padding-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      flex-grow: 1;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .input-field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-field-group label {
+      font-size: 11px;
+      color: var(--figma-color-text);
+      font-weight: 400;
+    }
+
+    .modal-select-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .modal-select, .modal-input {
+      background: var(--modal-input-bg);
+      border: none;
+      border-radius: 4px;
+      height: 30px;
+      padding: 0 8px;
+      color: var(--figma-color-text);
+      font-family: inherit;
+      font-size: 11px;
+      width: 100%;
+      box-sizing: border-box;
+      outline: none;
+    }
+
+    .modal-select {
+      padding-right: 30px; /* Make space for the arrow */
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .modal-select:disabled {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--figma-color-text);
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .modal-input::placeholder {
+      color: var(--figma-color-text);
+      opacity: 0.7;
+    }
+
+    .modal-select-arrow {
+      position: absolute;
+      right: 8px;
+      pointer-events: none;
+      opacity: 0.8;
+    }
+
+    .modal-export-btn {
+      height: 32px;
+      background: var(--modal-export-btn-bg);
+      color: var(--figma-color-text);
+      border: none;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .modal-export-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .modal-export-btn:not(:disabled):hover {
+      opacity: 0.85;
+    }
+
+    .modal-status {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+      font-size: 11px;
+      text-align: center;
+      /* min-height: 16px; */
+      line-height: 1.2;
+      background: var(--tab-active-bg);
+      /* border-top: 1px solid var(--tab-wrapper-border); */
+      z-index: 10;
+      transform: translateY(100%);
+      opacity: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+
+    .modal-status.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .modal-status.success {
+      color: var(--figma-color-text);
+    }
+
+    .modal-status.error {
+      color: var(--figma-color-text);
+    }
+
+    .modal-status.info {
+      color: var(--figma-color-text);
+    }
+    /* End of Export Modal Styles */
+
+    /* Global Toast Styles */
+    .global-toast {
+      position: fixed;
+      border-radius: 4px;
+      bottom: 18px;
+      right: 18px;
+      transform: translateX(0%) translateY(100px);
+      background: var(--tab-active-bg);
+      padding: 10px 12px;
+      font-size: 11px;
+      line-height: 1.2;
+      z-index: 2000;
+      opacity: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      text-align: center;
+    }
+
+    .global-toast.show {
+      transform: translateX(0%) translateY(0);
+      opacity: 1;
+    }
+
+    .global-toast.success {
+      color: var(--modal-export-btn-bg);
+    }
+
+    .global-toast.error {
+      color: var(--figma-color-text);
+    }
+
+    .global-toast.info {
+      color: var(--tab-default-text-color);
+    }
+    /* End of Global Toast Styles */
+
+    /* Toggle Switch Styles */
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 32px;
+      height: 18px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--toggle-bg-inactive);
+      transition: 0.2s;
+      border-radius: 28px;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 1px;
+      bottom: 1px;
+      background-color: var(--toggle-slider-bg);
+      transition: 0.2s;
+      border-radius: 50%;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: var(--toggle-bg-active);
+    }
+
+    .toggle-switch input:focus + .toggle-slider {
+      box-shadow: 0 0 1px var(--toggle-bg-active);
+    }
+
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(14px);
+    }
+
+    /* Base font size container visibility */
+    #base-font-size-container {
+      opacity: 0.5;
+      transition: opacity 0.2s ease;
+    }
+
+    #base-font-size-container.enabled {
+      opacity: 1;
+    }
+
+  
   </style>
 </head>
 <body>
@@ -385,7 +679,7 @@
         <div class="tab-button-group"> <!-- Added inner group -->
           <button class="tab-button active" data-target="variables-view">Variables</button>
           <button class="tab-button" data-target="styles-view">Styles</button>
-          <button class="tab-button" data-target="github-view">Export to Github</button>
+          <button class="tab-button" data-target="github-view">Github Settings</button>
           <button class="tab-button" data-target="settings-view">Settings</button>
         </div> <!-- Closed inner group -->
       </div>
@@ -397,7 +691,7 @@
         <!-- Variables View -->
         <div class="tab-content active" id="variables-view">
           <div id="tree-area">
-            <div id="variables-tree">
+            <div id="variables-tree" style= "height: 100%">
               <div class="spinner"></div>
             </div>
           </div>
@@ -429,20 +723,20 @@
               <div id="json-code-content" class="output-code-content active">
                 <!-- Remove the warning banner from here -->
                 
-                <p id="json-initial-message" style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+                <p id="json-initial-message" style="margin: 0; font-size: 11px; font-weight: 400; opacity: 0.6; height: 100%; display: flex; justify-content: center; align-items: center;">Select a collection, mode, or variable in the tree to view details.</p>
                 <pre class="json-viewer" style="display: none;"></pre> <!-- JSON code will go here -->
               </div>
               <!-- Js Content Pane (Placeholder) -->
               <div id="js-code-content" class="output-code-content">
-                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+                <p>Select a collection, mode, or variable in the tree to view details.</p>
               </div>
               <!-- CSS Content Pane (Placeholder) -->
               <div id="css-code-content" class="output-code-content">
-                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+                <p>Select a collection, mode, or variable in the tree to view details.</p>
               </div>
               <!-- Tailwind Content Pane (Placeholder) -->
               <div id="tailwind-code-content" class="output-code-content">
-                <p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>
+                <p>Select a collection, mode, or variable in the tree to view details.</p>
               </div>
             </div>
           </div>
@@ -451,24 +745,235 @@
         <!-- Styles View -->
         <div class="tab-content" id="styles-view">
           <div id="tree-area">
-            Tree Area (Styles)
+            <div id="styles-tree"style= "height: 100%" >
+              <div class="spinner"></div>
+            </div>
           </div>
           <div id="output-area">
-            Output Area (Styles)
+            <!-- Output Area Header with tabs -->
+            <div id="output-area-header">
+              <div class="tab-button-group"> <!-- For JS and CSS tabs only -->
+                <button class="tab-button output-tab-button active" data-target="styles-js-code-content">JS</button>
+                <button class="tab-button output-tab-button" data-target="styles-css-code-content">CSS</button>
+              </div>
+              <div class="action-button-group"> <!-- For Download and Copy buttons -->
+                <button class="tab-button" id="styles-export-github-btn">Export to Github</button>
+                <button class="tab-button" id="styles-download-code-btn">Download code</button>
+                <button class="tab-button" id="styles-copy-code-btn">Copy to clipboard</button>
+              </div>
+            </div>
+
+            <!-- Add the warning banner here, between header and code output -->
+            <div id="global-warning-banner" class="warning-banner">
+              <p id="global-warning-message">Some variable aliases couldn't be resolved due to missing libraries — please enable all required Figma libraries and restart the plugin.</p>
+              <button class="close-btn" onclick="document.getElementById('global-warning-banner').style.display = 'none';">&times;</button>
+            </div>
+
+            <!-- Output Area Code (scrollable content) -->
+            <div id="output-area-code">
+              <!-- Styles JS Content Pane -->
+              <div id="styles-js-code-content" class="output-code-content active">
+                <p id="styles-js-initial-message" style="margin: 0; font-size: 10px; font-weight: 400; opacity: 0.7; height: 100%; display: flex; justify-content: center; align-items: center;">Select a style in the tree to view details.</p>
+                <pre class="json-viewer" style="display: none;"></pre> <!-- JS code will go here -->
+              </div>
+              <!-- Styles CSS Content Pane -->
+              <div id="styles-css-code-content" class="output-code-content">
+                <p style="margin: 0; font-size: 10px; font-weight: 400; opacity: 0.7; height: 100%; display: flex; justify-content: center; align-items: center;">Select a style in the tree to view details.</p>
+              </div>
+            </div>
           </div>
         </div>
         
         <!-- GitHub Export View (Placeholder) -->
         <div class="tab-content" id="github-view">
-          <div id="output-area">
-            Output Area (Github)
+          <div id="github-auth-container" style="
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            padding: 40px;
+            margin: auto;
+          ">
+
+
+            <!-- Heading Container -->
+            <div style="
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 4px;
+              max-width: 500px;
+              text-align: center;
+            ">
+              <h2 id="github-auth-heading" style="
+                margin: 0;
+                font-size: 12px;
+                font-weight: 500;
+                color: #FFFFFF;
+                line-height: 18px;
+              ">Authenticate your Github account</h2>
+              <p id="github-auth-subtitle" style="
+                margin: 0;
+                font-size: 11px;
+                color: #FFFFFF;
+                line-height: 16px;
+                opacity: 0.8;
+              ">Add your Personal Access token to connect your github account with Toko</p>
+            </div>
+
+            <!-- Button and Input Field Container -->
+            <div style="
+              display: flex;
+              flex-direction: column;
+              gap: 4px;
+              width: 400px;
+            ">
+              <!-- PAT Input Field -->
+              <div style="
+                background: var(--input-field-bg);
+                border-radius: 4px;
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0 12px;
+                box-sizing: border-box;
+              ">
+                <input type="password" id="github-pat-input" placeholder="Enter your access token here" style="
+                  background: none;
+                  border: none;
+                  color: #FFFFFF;
+                  font-family: inherit;
+                  font-size: 11px;
+                  line-height: 16px;
+                  width: 100%;
+                  outline: none;
+                ">
+              </div>
+
+              <!-- Authenticate Button -->
+              <button id="github-auth-button" style="
+                background: #00924B;
+                border: none;
+                border-radius: 4px;
+                height: 32px;
+                color: #FFFFFF;
+                font-family: inherit;
+                font-size: 11px;
+                font-weight: 500;
+                line-height: 16px;
+                cursor: pointer;
+                transition: opacity 0.2s;
+                opacity: 0.35;
+              " disabled>Authenticate</button>
+            </div>
+
+            <!-- Status Message -->
+            <div id="github-auth-status" style="
+              max-width: 400px;
+              text-align: center;
+              font-size: 11px;
+              line-height: 1.4;
+              display: none;
+            "></div>
+          </div>
+
+          <!-- Authenticated State (Initially Hidden) -->
+          <div id="github-authenticated-container" style="
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            padding: 40px;
+            margin: auto;
+          ">
+            <!-- Success Message -->
+            <div style="
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 4px;
+              text-align: center;
+              
+            ">
+              <h2 style="
+                margin: 0;
+                font-size: 14px;
+                font-weight: 500;
+                color: #FFFFFF;
+                line-height: 24px;
+              ">Authenticated</h2>
+              <p id="github-username-display" style="
+                margin: 0;
+                font-size: 11px;
+                color: #FFFFFF;
+                line-height: 16px;
+                opacity: 0.7;
+              ">Connected to GitHub as <span id="github-username"></span></p>
+            </div>
+
+            <!-- Disconnect Button -->
+            <button id="github-disconnect-button" style="
+              background: var(--tab-active-bg);
+              border-radius: 4px;
+              color: var(--figma-color-text);
+              height: 28px;
+              border: none;
+              font-family: inherit;
+              font-size: 11px;
+              padding: 0 16px;
+              cursor: pointer;
+              /* opacity: 0.8; */
+              transition: opacity 0.2s;
+            ">Disconnect</button>
           </div>
          </div>
 
-        <!-- Settings View (Placeholder) -->
+        <!-- Settings View -->
          <div class="tab-content" id="settings-view">
-          <div id="output-area">
-            Output Area (Settings)
+          <div id="output-area" style="padding: 20px; flex-direction: column; align-items: center; justify-content: center;">
+            
+            <!-- Dimension Section - matching Figma design exactly -->
+            <div style="width: 100%;  max-width: 400px;">
+              <h2 style="margin-bottom: 8px; margin-top: 0px; font-size: 13px; color: var(--figma-color-text); font-weight: 500;">Dimension</h2>
+              
+              <!-- Toggle Switch for REM -->
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+                <label for="rem-toggle" style="font-size: 11px; color: var(--figma-color-text); opacity: 0.7; cursor: pointer; font-weight: 400;">
+                  Use REM units for pixel values
+                </label>
+                <label class="toggle-switch" style="margin-left: auto; margin-right: 2px;">
+                  <input type="checkbox" id="rem-toggle">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              
+              <!-- Base Value Section -->
+              <div style="margin-bottom: 16px;" id="base-font-size-container">
+                <h2 style="margin-bottom: 2px; font-size: 13px; color: var(--figma-color-text); font-weight: 500;">Base Value</h2>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <label for="base-font-size" style="font-size: 11px; color: var(--figma-color-text); opacity: 0.7; font-weight: 400;">
+                    Base value for rem conversion
+                  </label>
+                  <input type="number" id="base-font-size" value="16" min="1" max="100" style="
+                    background: var(--input-field-bg);
+                    border: none;
+                    color: var(--figma-color-text);
+                    font-family: inherit;
+                    font-size: 12px;
+                    padding: 8px 12px;
+                    border-radius: 4px;
+                    width: 80px;
+                    outline: none;
+                    margin-left: auto;
+                    margin-right: 4px;
+                  ">
+                  <span style="font-size: 12px; color: var(--figma-color-text); font-weight: 400;">px</span>
+                </div>
+              </div>
+            </div>
           </div>
          </div>
 
@@ -476,9 +981,16 @@
       </div> <!-- End of views-container -->
     </div>
   </div>
+
   <script>
+    // Constants for placeholder messages
+    const VARIABLES_PLACEHOLDER_HTML = '<p style="margin: 0; font-size: 11px; font-weight: 400; opacity: 0.6; height: 100%; display: flex; justify-content: center; align-items: center;">Select a collection, mode, or variable in the tree to view details.</p>';
+    const STYLES_PLACEHOLDER_HTML = '<p style="margin: 0; font-size: 11px; font-weight: 400; opacity: 0.6; height: 100%; display: flex; justify-content: center; align-items: center;">Select a style in the tree to view details.</p>';
+    
     // Store the original DTCG payload
     let originalDtcgPayload = null;
+    // Store the original styles payload
+    let originalStylesPayload = null;
     
     // Document ready event
     document.addEventListener('DOMContentLoaded', function () {
@@ -527,6 +1039,18 @@
       // Setup download and copy button functionality
       setupActionButtons();
 
+      // Setup GitHub authentication functionality
+      setupGitHubAuthentication();
+
+      // Check initial GitHub authentication status
+      checkGitHubAuthStatus();
+
+      // Setup GitHub export modal functionality
+      setupGitHubExportModal();
+
+      // Setup REM settings functionality
+      setupRemSettings();
+
       // Simplified message handler - properly handle real data and display it
       window.onmessage = async (event) => {
         const msg = event.data.pluginMessage;
@@ -538,6 +1062,11 @@
           // console.log("Received dtcgPayload:", msg.payload); // Removed logging
           originalDtcgPayload = msg.payload; // Store the full payload
           renderCheckboxTree(msg.payload);
+        } else if (msg.type === 'stylesPayload') {
+          console.log("Received stylesPayload:", msg.payload);
+          // Store the original styles payload
+          originalStylesPayload = msg.payload;
+          renderStylesCheckboxTree(msg.payload);
         } else if (msg.type === 'jsCodePreview') {
           // console.log("Received jsCodePreview:", msg.payload); // Removed logging
           updateJSView(msg.payload);
@@ -547,6 +1076,12 @@
         } else if (msg.type === 'tailwindCodePreview') {
           // console.log("Received tailwindCodePreview:", msg.payload); // Removed logging
           updateTailwindView(msg.payload);
+        } else if (msg.type === 'stylesJsCodePreview') {
+          // Handle styles JS code preview
+          updateStylesJSView(msg.payload);
+        } else if (msg.type === 'stylesCssCodePreview') {
+          // Handle styles CSS code preview
+          updateStylesCSSView(msg.payload);
         } else if (msg.type === 'error') {
           console.error("Error from plugin:", msg.message);
           // Display error in UI if needed
@@ -569,6 +1104,53 @@
             messageEl.textContent = displayMessage;
             banner.style.display = 'block';
           }
+        } else if (msg.type === 'GITHUB_AUTH_STATUS') {
+          // Handle initial authentication status
+          if (msg.payload.isAuthenticated) {
+            showGitHubAuthenticatedState(msg.payload.username);
+          } else {
+            showGitHubAuthState();
+          }
+        } else if (msg.type === 'GITHUB_AUTH_SUCCESS') {
+          // Handle successful authentication
+          showGitHubAuthenticatedState(msg.payload.username);
+          showGitHubAuthStatus('Successfully authenticated!', 'success');
+          setTimeout(() => {
+            hideGitHubAuthStatus();
+          }, 3000);
+        } else if (msg.type === 'GITHUB_AUTH_ERROR') {
+          // Handle authentication error
+          showGitHubAuthStatus(msg.payload.error || 'Authentication failed. Please check your token.', 'error');
+        } else if (msg.type === 'GITHUB_AUTH_REQUIRED_FOR_EXPORT') {
+          // User tried to export but is not authenticated - switch to GitHub tab
+          switchToGitHubTab();
+          showGitHubAuthStatus('Please authenticate with GitHub to export your variables.', 'info');
+        } else if (msg.type === 'GITHUB_DISCONNECTED') {
+          // Handle successful disconnection
+          showGitHubAuthState();
+          showGitHubAuthStatus('Successfully disconnected from GitHub.', 'info');
+          setTimeout(() => {
+            hideGitHubAuthStatus();
+          }, 3000);
+        } else if (msg.type === 'REM_SETTINGS_STATUS') {
+          // Handle initial REM settings status
+          updateRemSettingsUI(msg.payload.useRemUnits, msg.payload.remBaseFontSize);
+        } else if (msg.type === 'REM_SETTING_UPDATED') {
+          // Handle REM setting update confirmation
+          console.log('REM settings updated:', msg.payload);
+          updateRemSettingsUI(msg.payload.useRemUnits, msg.payload.remBaseFontSize);
+        } else if (msg.type === 'SAVE_UI_STATE_FOR_REFRESH') {
+          // Save current UI state before data refresh
+          saveCurrentUIState();
+          console.log('UI state saved for refresh');
+        } else if (msg.type === 'DATA_REFRESHED_RESTORE_STATE') {
+          // Handle refreshed data and restore UI state
+          console.log('Received refreshed data, restoring state...');
+          handleDataRefreshWithStateRestore(msg.payload);
+        } else if (msg.type === 'DATA_REFRESHED_CLEAN_RESET') {
+          // Handle refreshed data with clean reset (no state preservation)
+          console.log('Received refreshed data, performing clean reset...');
+          handleDataRefreshWithCleanReset(msg.payload);
         }
       };
     });
@@ -585,8 +1167,8 @@
       // Handle empty payload
       if (!payload || Object.keys(payload).length === 0) {
         treeContainer.innerHTML = `
-          <div style="padding: 10px;">
-            No variables found. Please ensure your Figma file contains variables.
+          <div style="font-size: 11px; color: var(--figma-color-text); line-height: 1.8; font-weight: 400; display: flex; justify-content: center; align-items: center; height: 100%;">
+            No variables found.
           </div>
         `;
         return;
@@ -600,6 +1182,151 @@
       
       // Initialize JSON view with empty object to show the "select items" message
       updateJsonView({});
+    }
+
+    // Function to render the checkbox tree for styles from nested styles payload
+    function renderStylesCheckboxTree(payload) {
+      const treeContainer = document.getElementById('styles-tree');
+      treeContainer.innerHTML = ''; // Clear existing content
+      
+      // Create the root UL element for the tree
+      const rootUl = document.createElement('ul');
+      rootUl.className = 'checkbox-tree';
+      
+      // Handle empty payload
+      if (!payload || Object.keys(payload).length === 0) {
+        treeContainer.innerHTML = `
+          <div style="font-size: 11px; color: var(--figma-color-text); line-height: 1.8; font-weight: 400; display: flex; justify-content: center; align-items: center; height: 100%;">
+            No styles found. 
+          </div>
+        `;
+        return;
+      }
+      
+      // Generate tree structure recursively
+      generateStylesTreeNodes(payload, rootUl);
+      
+      // Append the tree to the container
+      treeContainer.appendChild(rootUl);
+      
+      // Initialize JSON view with empty object to show the "select items" message
+      updateJsonView({});
+    }
+    
+    // Recursive function to generate styles tree nodes
+    function generateStylesTreeNodes(data, parentElement, path = []) {
+      // Process each key-value pair in the current object
+      for (const key in data) {
+        const value = data[key];
+        const currentPath = [...path, key];
+        
+        // Create list item
+        const li = document.createElement('li');
+        li.setAttribute('data-path', currentPath.join('.'));
+        
+        // Create checkbox item wrapper
+        const checkboxItem = document.createElement('div');
+        checkboxItem.className = 'checkbox-item';
+        
+        // Create checkbox label container
+        const checkboxLabelContainer = document.createElement('div');
+        checkboxLabelContainer.className = 'checkbox-label-container';
+        
+        // Create checkbox
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `checkbox-${currentPath.join('-')}`;
+        checkbox.setAttribute('data-path', currentPath.join('.'));
+        
+        // Create label
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        label.htmlFor = checkbox.id;
+        label.textContent = key;
+        
+        // Add title for tooltip on hover (include full path for context)
+        label.title = currentPath.join(' > ');
+        
+        // Add checkbox and label to container
+        checkboxLabelContainer.appendChild(checkbox);
+        checkboxLabelContainer.appendChild(label);
+        
+        // Add container to item wrapper
+        checkboxItem.appendChild(checkboxLabelContainer);
+        
+        // Determine if this is a style or a group
+        const isStyle = value && typeof value === 'object' && value.id; // Styles have an id property
+        const isGroup = value && typeof value === 'object' && !isStyle && key !== '_style';
+        
+        if (isGroup) {
+          // This is a branch node with children
+          
+          // Create chevron for group
+          const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          chevron.setAttribute('width', '12');
+          chevron.setAttribute('height', '12');
+          chevron.setAttribute('viewBox', '0 0 12 12');
+          chevron.setAttribute('fill', 'none');
+          chevron.classList.add('chevron-icon');
+          
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', 'M3 4.5L6 7.5L9 4.5');
+          path.setAttribute('stroke', 'white');
+          path.setAttribute('stroke-opacity', '0.8');
+          path.setAttribute('stroke-linecap', 'round');
+          path.setAttribute('stroke-linejoin', 'round');
+          
+          chevron.appendChild(path);
+          checkboxItem.appendChild(chevron);
+          
+          // Create child list
+          const ul = document.createElement('ul');
+          li.appendChild(checkboxItem);
+          li.appendChild(ul);
+          
+          // Recursively generate children
+          generateStylesTreeNodes(value, ul, currentPath);
+          
+          // Setup event listener for this checkbox
+          checkbox.addEventListener('change', function(event) {
+            handleCheckboxChange(event.target);
+          });
+          
+          // Add click event for expanding/collapsing
+          checkboxItem.addEventListener('click', function(e) {
+            // Prevent this from triggering when clicking the checkbox directly
+            if (e.target !== checkbox) {
+              e.preventDefault();
+              li.classList.toggle('expanded');
+              e.stopPropagation();
+            }
+          });
+        } else {
+          // This is a leaf node (style)
+          li.appendChild(checkboxItem);
+          
+          // Setup event listener for this checkbox
+          checkbox.addEventListener('change', function(event) {
+            handleCheckboxChange(event.target);
+          });
+          
+          // Add click event for toggling checkbox on leaf nodes
+          checkboxItem.addEventListener('click', function(e) {
+            // Prevent this from triggering when clicking the checkbox directly
+            if (e.target !== checkbox) {
+              e.preventDefault();
+              checkbox.checked = !checkbox.checked;
+              // Trigger the change event manually
+              const changeEvent = new Event('change', { bubbles: true });
+              checkbox.dispatchEvent(changeEvent);
+              e.stopPropagation();
+            }
+          });
+        }
+        
+        // Append this list item to the parent element
+        parentElement.appendChild(li);
+      }
     }
     
     // Recursive function to generate tree nodes
@@ -726,46 +1453,72 @@
       // Update parent states
       updateParentStates(checkbox);
       
-      // Generate filtered DTCG payload based on current checkbox selections
-      const filteredDtcg = generateFilteredDtcgPayload();
+      // Determine which view we're in by checking the closest tab content
+      const stylesView = checkbox.closest('#styles-view');
+      const variablesView = checkbox.closest('#variables-view');
       
-      // Update the JSON view with the filtered payload
-      updateJsonView(filteredDtcg);
-      
-      // If JS tab is active, also update the JS view
-      const jsTab = document.querySelector('[data-target="js-code-content"]');
-      if (jsTab && jsTab.classList.contains('active')) {
-        // Request JS code generation with the filtered payload
-        parent.postMessage({ 
-          pluginMessage: { 
-            type: 'request-js-code',
-            payload: filteredDtcg
-          } 
-        }, '*');
-      }
-      
-      // If CSS tab is active, also update the CSS view
-      const cssTab = document.querySelector('[data-target="css-code-content"]');
-      if (cssTab && cssTab.classList.contains('active')) {
-        // Request CSS code generation with the filtered payload
-        parent.postMessage({ 
-          pluginMessage: { 
-            type: 'request-css-code',
-            payload: filteredDtcg
-          } 
-        }, '*');
-      }
-      
-      // If Tailwind tab is active, also update the Tailwind view
-      const tailwindTab = document.querySelector('[data-target="tailwind-code-content"]');
-      if (tailwindTab && tailwindTab.classList.contains('active')) {
-        // Request Tailwind code generation with the filtered payload
-        parent.postMessage({ 
-          pluginMessage: { 
-            type: 'request-tailwind-code',
-            payload: filteredDtcg
-          } 
-        }, '*');
+      if (variablesView) {
+        // Handle variables view
+        const filteredDtcg = generateFilteredDtcgPayload();
+        updateJsonView(filteredDtcg);
+        
+        // If JS tab is active, also update the JS view
+        const jsTab = document.querySelector('[data-target="js-code-content"]');
+        if (jsTab && jsTab.classList.contains('active')) {
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'request-js-code',
+              payload: filteredDtcg
+            } 
+          }, '*');
+        }
+        
+        // If CSS tab is active, also update the CSS view
+        const cssTab = document.querySelector('[data-target="css-code-content"]');
+        if (cssTab && cssTab.classList.contains('active')) {
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'request-css-code',
+              payload: filteredDtcg
+            } 
+          }, '*');
+        }
+        
+        // If Tailwind tab is active, also update the Tailwind view
+        const tailwindTab = document.querySelector('[data-target="tailwind-code-content"]');
+        if (tailwindTab && tailwindTab.classList.contains('active')) {
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'request-tailwind-code',
+              payload: filteredDtcg
+            } 
+          }, '*');
+        }
+      } else if (stylesView) {
+        // Handle styles view
+        const filteredStyles = generateFilteredStylesPayload();
+        
+        // If Styles JS tab is active, update the JS view
+        const stylesJsTab = stylesView.querySelector('[data-target="styles-js-code-content"]');
+        if (stylesJsTab && stylesJsTab.classList.contains('active')) {
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'request-styles-js-code',
+              payload: filteredStyles
+            } 
+          }, '*');
+        }
+        
+        // If Styles CSS tab is active, update the CSS view
+        const stylesCssTab = stylesView.querySelector('[data-target="styles-css-code-content"]');
+        if (stylesCssTab && stylesCssTab.classList.contains('active')) {
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'request-styles-css-code',
+              payload: filteredStyles
+            } 
+          }, '*');
+        }
       }
     }
     
@@ -916,76 +1669,65 @@
     
     // Setup tabs for the output area
     function setupOutputAreaTabs() {
-      const outputTabButtons = document.querySelectorAll('#output-area-header .tab-button-group .tab-button');
-      const outputTabContents = document.querySelectorAll('#output-area-code .output-code-content');
+      // Function to setup tabs for a specific view
+      function setupTabsForView(viewId) {
+        const viewElement = document.getElementById(viewId);
+        if (!viewElement) return;
+        
+        const outputTabButtons = viewElement.querySelectorAll('#output-area-header .tab-button-group .tab-button');
+        const outputTabContents = viewElement.querySelectorAll('#output-area-code .output-code-content');
 
-      outputTabButtons.forEach(button => {
-        // Use passive option for touch events to improve scrolling performance
-        button.addEventListener('touchstart', () => {
-          // Deactivate all output tabs and hide all output content
-          outputTabButtons.forEach(btn => btn.classList.remove('active'));
-          outputTabContents.forEach(content => content.classList.remove('active'));
+        outputTabButtons.forEach(button => {
+          // Use passive option for touch events to improve scrolling performance
+          button.addEventListener('touchstart', () => {
+            handleTabSwitch(button, outputTabButtons, outputTabContents, viewId);
+          }, { passive: true });
 
-          // Activate the clicked button
-          button.classList.add('active');
-
-          // Show the target content
-          const targetId = button.getAttribute('data-target');
-          const targetContent = document.getElementById(targetId);
-          if (targetContent) {
-            targetContent.classList.add('active');
-          }
-          
-          // Handle JS tab specific logic
-          if (targetId === 'js-code-content') {
-            handleJSTabActivation();
-          }
-          
-          // Handle CSS tab specific logic
-          if (targetId === 'css-code-content') {
-            handleCSSTabActivation();
-          }
-          
-          // Handle Tailwind tab specific logic
-          if (targetId === 'tailwind-code-content') {
-            handleTailwindTabActivation();
-          }
-        }, { passive: true });
-
-        button.addEventListener('click', () => {
-          // Deactivate all output tabs and hide all output content
-          outputTabButtons.forEach(btn => btn.classList.remove('active'));
-          outputTabContents.forEach(content => content.classList.remove('active'));
-
-          // Activate the clicked button
-          button.classList.add('active');
-
-          // Show the target content
-          const targetId = button.getAttribute('data-target');
-          const targetContent = document.getElementById(targetId);
-          if (targetContent) {
-            targetContent.classList.add('active');
-          }
-          
-          // Handle JS tab specific logic
-          if (targetId === 'js-code-content') {
-            handleJSTabActivation();
-          }
-          
-          // Handle CSS tab specific logic
-          if (targetId === 'css-code-content') {
-            handleCSSTabActivation();
-          }
-          
-          // Handle Tailwind tab specific logic
-          if (targetId === 'tailwind-code-content') {
-            handleTailwindTabActivation();
-          }
+          button.addEventListener('click', () => {
+            handleTabSwitch(button, outputTabButtons, outputTabContents, viewId);
+          });
         });
-      });
+      }
+      
+      // Function to handle tab switching within a specific view
+      function handleTabSwitch(clickedButton, tabButtons, tabContents, viewId) {
+        // Deactivate all tabs and hide all content within this view
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        tabContents.forEach(content => content.classList.remove('active'));
 
-      // Removing unused event listeners for action buttons that are placeholder only
-      // These were causing console warnings without providing functionality
+        // Activate the clicked button
+        clickedButton.classList.add('active');
+
+        // Show the target content
+        const targetId = clickedButton.getAttribute('data-target');
+        const targetContent = document.getElementById(targetId);
+        if (targetContent) {
+          targetContent.classList.add('active');
+        }
+        
+        // Handle specific tab logic based on view and target
+        if (viewId === 'variables-view') {
+          // Variables view tab logic
+          if (targetId === 'js-code-content') {
+            handleJSTabActivation();
+          } else if (targetId === 'css-code-content') {
+            handleCSSTabActivation();
+          } else if (targetId === 'tailwind-code-content') {
+            handleTailwindTabActivation();
+          }
+        } else if (viewId === 'styles-view') {
+          // Styles view tab logic
+          if (targetId === 'styles-js-code-content') {
+            handleStylesJSTabActivation();
+          } else if (targetId === 'styles-css-code-content') {
+            handleStylesCSSTabActivation();
+          }
+        }
+      }
+      
+      // Setup tabs for both views
+      setupTabsForView('variables-view');
+      setupTabsForView('styles-view');
     }
     
     // Handle JS tab activation
@@ -1026,6 +1768,34 @@
         pluginMessage: { 
           type: 'request-tailwind-code',
           payload: filteredDtcg
+        } 
+      }, '*');
+    }
+    
+    // Handle Styles JS tab activation
+    function handleStylesJSTabActivation() {
+      // Generate the filtered styles payload based on current selections
+      const filteredStyles = generateFilteredStylesPayload();
+      
+      // Request styles JS code generation from the plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-styles-js-code',
+          payload: filteredStyles
+        } 
+      }, '*');
+    }
+    
+    // Handle Styles CSS tab activation
+    function handleStylesCSSTabActivation() {
+      // Generate the filtered styles payload based on current selections
+      const filteredStyles = generateFilteredStylesPayload();
+      
+      // Request styles CSS code generation from the plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-styles-css-code',
+          payload: filteredStyles
         } 
       }, '*');
     }
@@ -1082,18 +1852,18 @@
             `;
           } else {
             // Show placeholder message
-            jsCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+            jsCodeContent.innerHTML = VARIABLES_PLACEHOLDER_HTML;
           }
         } else if (typeof jsPayload === 'string') {
           // Handle legacy string payload (fallback)
           if (jsPayload && jsPayload.trim() !== '{}') {
             jsCodeContent.innerHTML = `<pre class="json-viewer">${jsPayload}</pre>`;
           } else {
-            jsCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+            jsCodeContent.innerHTML = VARIABLES_PLACEHOLDER_HTML;
           }
         } else {
           // Show placeholder message
-          jsCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+          jsCodeContent.innerHTML = VARIABLES_PLACEHOLDER_HTML;
         }
       }
     }
@@ -1108,7 +1878,7 @@
           cssCodeContent.innerHTML = `<pre class="json-viewer">${payload.code}</pre>`;
         } else {
           // Show placeholder message
-          cssCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+          cssCodeContent.innerHTML = VARIABLES_PLACEHOLDER_HTML;
         }
       }
     }
@@ -1118,100 +1888,214 @@
       const tailwindCodeContent = document.getElementById('tailwind-code-content');
       
       if (tailwindCodeContent) {
+        // Check if we have meaningful Tailwind content
         if (payload && payload.code && payload.code.trim() !== '') {
-          // Simply show the Tailwind code directly, like JS and CSS do
-          tailwindCodeContent.innerHTML = `<pre class="json-viewer">${payload.code}</pre>`;
+          try {
+            // Parse the Tailwind config to check if it has actual content
+            const config = JSON.parse(payload.code);
+            const hasContent = config && 
+                             config.theme && 
+                             config.theme.extend && 
+                             Object.keys(config.theme.extend).length > 0;
+            
+            if (hasContent) {
+              // Show the Tailwind code if it has actual content
+              tailwindCodeContent.innerHTML = `<pre class="json-viewer">${payload.code}</pre>`;
+            } else {
+              // Show placeholder message for empty config
+              tailwindCodeContent.innerHTML = VARIABLES_PLACEHOLDER_HTML;
+            }
+          } catch (error) {
+            // If parsing fails, just show the code as-is
+            tailwindCodeContent.innerHTML = `<pre class="json-viewer">${payload.code}</pre>`;
+          }
         } else {
           // Show placeholder message
-          tailwindCodeContent.innerHTML = '<p style="margin: 0;">Select a collection, mode, or variable in the tree to view details.</p>';
+          tailwindCodeContent.innerHTML = VARIABLES_PLACEHOLDER_HTML;
+        }
+      }
+    }
+
+    // Update the Styles JS view with the current payload
+    function updateStylesJSView(jsPayload) {
+      const stylesJsCodeContent = document.getElementById('styles-js-code-content');
+      
+      if (stylesJsCodeContent) {
+        // Handle the new payload structure with both code and structure
+        if (jsPayload && typeof jsPayload === 'object' && jsPayload.code) {
+          const jsCode = jsPayload.code;
+          const structure = jsPayload.structure;
+          
+          if (jsCode && jsCode.trim() !== '{}') {
+            // Create a container with two sections: structure and code
+            stylesJsCodeContent.innerHTML = `
+              <div style="display: flex; flex-direction: column; height: 100%; gap: 12px;">
+                <div style="flex: 1; min-height: 0;">
+                  <h4 style="margin: 0 0 8px 0; color: #A0A0A0; font-size: 11px; font-weight: 500;">Object Structure</h4>
+                  <div style="background: #2C2C2C; border-radius: 4px; padding: 12px; height: calc(100% - 32px); overflow-y: auto;">
+                    <pre class="json-viewer" style="margin: 0;">${JSON.stringify(structure, null, 2)}</pre>
+                  </div>
+                </div>
+                <div style="flex: 1; min-height: 0;">
+                  <h4 style="margin: 0 0 8px 0; color: #A0A0A0; font-size: 11px; font-weight: 500;">Generated JavaScript Code</h4>
+                  <div style="background: #2C2C2C; border-radius: 4px; padding: 12px; height: calc(100% - 32px); overflow-y: auto;">
+                    <pre class="json-viewer" style="margin: 0;">${jsCode}</pre>
+                  </div>
+                </div>
+              </div>
+            `;
+          } else {
+            // Show placeholder message
+            stylesJsCodeContent.innerHTML = STYLES_PLACEHOLDER_HTML;
+          }
+        } else if (typeof jsPayload === 'string') {
+          // Handle legacy string payload (fallback)
+          if (jsPayload && jsPayload.trim() !== '{}') {
+            stylesJsCodeContent.innerHTML = `<pre class="json-viewer">${jsPayload}</pre>`;
+          } else {
+            stylesJsCodeContent.innerHTML = STYLES_PLACEHOLDER_HTML;
+          }
+        } else {
+          // Show placeholder message
+          stylesJsCodeContent.innerHTML = STYLES_PLACEHOLDER_HTML;
+        }
+      }
+    }
+
+    // Update the Styles CSS view with the current payload
+    function updateStylesCSSView(cssPayload) {
+      const stylesCssCodeContent = document.getElementById('styles-css-code-content');
+      
+      if (stylesCssCodeContent) {
+        if (cssPayload && cssPayload.code && cssPayload.code.trim() !== '') {
+          // Simply show the CSS code directly
+          stylesCssCodeContent.innerHTML = `<pre class="json-viewer">${cssPayload.code}</pre>`;
+        } else {
+          // Show placeholder message
+          stylesCssCodeContent.innerHTML = STYLES_PLACEHOLDER_HTML;
         }
       }
     }
 
     // Setup download and copy button functionality
     function setupActionButtons() {
-      const downloadBtn = document.getElementById('download-code-btn');
-      const copyBtn = document.getElementById('copy-code-btn');
-      const exportBtn = document.getElementById('export-github-btn');
+      // Helper function to create action button handlers
+      function createActionButtonHandlers(downloadBtnId, copyBtnId, exportBtnId, contextName) {
+        const downloadBtn = document.getElementById(downloadBtnId);
+        const copyBtn = document.getElementById(copyBtnId);
+        const exportBtn = document.getElementById(exportBtnId);
 
-      if (downloadBtn) {
-        downloadBtn.addEventListener('click', () => {
-          const data = getActiveCodeTabData();
-          if (data) {
-            // Create temporary anchor for download
-            const blob = new Blob([data.content], { type: data.mimeType });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = data.filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }
-        });
-      }
-
-      if (copyBtn) {
-        copyBtn.addEventListener('click', async () => {
-          const data = getActiveCodeTabData();
-          if (data) {
-            let copySuccess = false;
-            
-            try {
-              // Primary method: Use legacy execCommand (more reliable in plugin contexts)
-              const textarea = document.createElement('textarea');
-              textarea.value = data.content;
-              textarea.style.position = 'fixed';
-              textarea.style.left = '-999999px';
-              textarea.style.top = '-999999px';
-              document.body.appendChild(textarea);
-              textarea.focus();
-              textarea.select();
-              
-              copySuccess = document.execCommand('copy');
-              document.body.removeChild(textarea);
-              
-              // Fallback method: Modern Clipboard API
-              if (!copySuccess && navigator.clipboard) {
-                await navigator.clipboard.writeText(data.content);
-                copySuccess = true;
-              }
-            } catch (error) {
-              console.error('Failed to copy to clipboard:', error);
-              copySuccess = false;
-            }
-            
-            // Provide user feedback only if copy actually succeeded
-            if (copySuccess) {
-              const originalText = copyBtn.textContent;
-              copyBtn.textContent = 'Copied';
-              setTimeout(() => {
-                copyBtn.textContent = originalText;
-              }, 1000);
+        if (downloadBtn) {
+          downloadBtn.addEventListener('click', () => {
+            const data = getActiveCodeTabData();
+            if (data) {
+              // Create temporary anchor for download
+              const blob = new Blob([data.content], { type: data.mimeType });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = data.filename;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
             } else {
-              // Show failure feedback
-              const originalText = copyBtn.textContent;
-              copyBtn.textContent = 'Copy failed';
-              setTimeout(() => {
-                copyBtn.textContent = originalText;
-              }, 1000);
+              // Show toast when no data is selected
+              const message = contextName === 'styles' ? 'Select a style first from the tree' : 'Select a variable first from the tree';
+              showGlobalToast(message, 'error');
             }
-          }
-        });
+          });
+        }
+
+        if (copyBtn) {
+          copyBtn.addEventListener('click', async () => {
+            const data = getActiveCodeTabData();
+            if (data) {
+              let copySuccess = false;
+              
+              try {
+                // Primary method: Use legacy execCommand (more reliable in plugin contexts)
+                const textarea = document.createElement('textarea');
+                textarea.value = data.content;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-999999px';
+                textarea.style.top = '-999999px';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                
+                copySuccess = document.execCommand('copy');
+                document.body.removeChild(textarea);
+                
+                // Fallback method: Modern Clipboard API
+                if (!copySuccess && navigator.clipboard) {
+                  await navigator.clipboard.writeText(data.content);
+                  copySuccess = true;
+                }
+              } catch (error) {
+                console.error('Failed to copy to clipboard:', error);
+                copySuccess = false;
+              }
+              
+              // Provide user feedback only if copy actually succeeded
+              if (copySuccess) {
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Copied';
+                setTimeout(() => {
+                  copyBtn.textContent = originalText;
+                }, 1000);
+              } else {
+                // Show failure feedback
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Copy failed';
+                setTimeout(() => {
+                  copyBtn.textContent = originalText;
+                }, 1000);
+              }
+            } else {
+              // Show toast when no data is selected
+              const message = contextName === 'styles' ? 'Select a style first from the tree' : 'Select a variable first from the tree';
+              showGlobalToast(message, 'error');
+            }
+          });
+        }
+
+        if (exportBtn) {
+          exportBtn.addEventListener('click', () => {
+            // Handle export button click - check auth and show modal
+            handleExportToGitHub();
+          });
+        }
       }
 
-      if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
-          // Handle export button click
-          console.log('Export to Github button clicked');
-        });
-      }
+      // Set up action buttons for Variables view
+      createActionButtonHandlers('download-code-btn', 'copy-code-btn', 'export-github-btn', 'variables');
+      
+      // Set up action buttons for Styles view
+      createActionButtonHandlers('styles-download-code-btn', 'styles-copy-code-btn', 'styles-export-github-btn', 'styles');
     }
 
     // Helper function to get active code tab data
     function getActiveCodeTabData() {
-      const activeTabButton = document.querySelector('#output-area-header .tab-button-group .tab-button.active');
+      // First, determine which main tab is currently active
+      const activeMainTab = document.querySelector('.tab-wrapper .tab-button.active');
+      if (!activeMainTab) return null;
+      
+      const activeMainTabTarget = activeMainTab.getAttribute('data-target');
+      
+      // Now look for the active output tab within the specific view
+      let activeTabButton;
+      if (activeMainTabTarget === 'variables-view') {
+        // Look for active tab within variables view
+        activeTabButton = document.querySelector('#variables-view #output-area-header .tab-button-group .tab-button.active');
+      } else if (activeMainTabTarget === 'styles-view') {
+        // Look for active tab within styles view
+        activeTabButton = document.querySelector('#styles-view #output-area-header .tab-button-group .tab-button.active');
+      } else {
+        // Not in Variables or Styles view, no code data available
+        return null;
+      }
+      
       if (!activeTabButton) return null;
 
       const targetId = activeTabButton.getAttribute('data-target');
@@ -1265,12 +2149,1395 @@
           filename = 'tailwind.config.js';
           mimeType = 'application/javascript';
           break;
+        case 'styles-js-code-content':
+          // Handle styles JS content similar to variables JS content
+          const stylesGeneratedCodeHeaders = Array.from(contentPane.querySelectorAll('h4'));
+          const stylesGeneratedCodeHeader = stylesGeneratedCodeHeaders.find(h => h.textContent === 'Generated JavaScript Code');
+          
+          if (stylesGeneratedCodeHeader && stylesGeneratedCodeHeader.nextElementSibling) {
+            const stylesCodeContainer = stylesGeneratedCodeHeader.nextElementSibling;
+            const stylesCodeViewer = stylesCodeContainer.querySelector('.json-viewer');
+            content = stylesCodeViewer ? stylesCodeViewer.textContent : '';
+          } else {
+            // Fallback: try to get content from a single pre element (legacy case)
+            const singleStylesJsViewer = contentPane.querySelector('.json-viewer');
+            content = singleStylesJsViewer ? singleStylesJsViewer.textContent : '';
+          }
+          
+          type = 'js';
+          filename = 'styles.js';
+          mimeType = 'application/javascript';
+          break;
+        case 'styles-css-code-content':
+          // Handle styles CSS content
+          const stylesCssViewer = contentPane.querySelector('.json-viewer');
+          content = stylesCssViewer ? stylesCssViewer.textContent : '';
+          type = 'css';
+          filename = 'styles.css';
+          mimeType = 'text/css';
+          break;
         default:
           return null;
       }
 
       return (content && content.trim() !== '') ? { content, type, filename, mimeType } : null;
     }
+
+    // Setup GitHub authentication functionality
+    function setupGitHubAuthentication() {
+      const patInput = document.getElementById('github-pat-input');
+      const authButton = document.getElementById('github-auth-button');
+      const disconnectButton = document.getElementById('github-disconnect-button');
+
+      // Enable/disable authenticate button based on input
+      if (patInput && authButton) {
+        patInput.addEventListener('input', () => {
+          const hasValue = patInput.value.trim().length > 0;
+          authButton.disabled = !hasValue;
+          authButton.style.opacity = hasValue ? '1' : '0.35';
+        });
+
+        // Handle authenticate button click
+        authButton.addEventListener('click', () => {
+          const pat = patInput.value.trim();
+          if (pat) {
+            authenticateWithGitHub(pat);
+          }
+        });
+
+        // Handle Enter key in PAT input
+        patInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter' && !authButton.disabled) {
+            const pat = patInput.value.trim();
+            if (pat) {
+              authenticateWithGitHub(pat);
+            }
+          }
+        });
+      }
+
+      // Handle disconnect button click
+      if (disconnectButton) {
+        disconnectButton.addEventListener('click', () => {
+          disconnectGitHub();
+        });
+      }
+    }
+
+    // Check initial GitHub authentication status
+    function checkGitHubAuthStatus() {
+      // Request authentication status from plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'CHECK_GITHUB_AUTH'
+        } 
+      }, '*');
+    }
+
+    // Authenticate with GitHub using PAT
+    function authenticateWithGitHub(pat) {
+      showGitHubAuthStatus('Authenticating...', 'info');
+      
+      // Send authentication request to plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'AUTHENTICATE_GITHUB',
+          payload: { pat: pat }
+        } 
+      }, '*');
+    }
+
+    // Handle Export to GitHub button click
+    function handleExportToGitHub() {
+      // First check if user is authenticated
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'CHECK_GITHUB_AUTH_FOR_EXPORT'
+        } 
+      }, '*');
+    }
+
+    // Disconnect from GitHub
+    function disconnectGitHub() {
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'DISCONNECT_GITHUB'
+        } 
+      }, '*');
+    }
+
+    // Show GitHub authentication status message
+    function showGitHubAuthStatus(message, type = 'info') {
+      const statusEl = document.getElementById('github-auth-status');
+      if (statusEl) {
+        statusEl.textContent = message;
+        statusEl.style.display = 'block';
+        
+        // Set color based on type
+        switch (type) {
+          case 'error':
+            statusEl.style.color = '#FF6B6B';
+            break;
+          case 'success':
+            statusEl.style.color = '#00924B';
+            break;
+          case 'info':
+          default:
+            statusEl.style.color = '#A0A0A0';
+            break;
+        }
+      }
+    }
+
+    // Hide GitHub authentication status message
+    function hideGitHubAuthStatus() {
+      const statusEl = document.getElementById('github-auth-status');
+      if (statusEl) {
+        statusEl.style.display = 'none';
+      }
+    }
+
+    // Switch to GitHub authentication UI state
+    function showGitHubAuthState() {
+      const authContainer = document.getElementById('github-auth-container');
+      const authenticatedContainer = document.getElementById('github-authenticated-container');
+      
+      if (authContainer && authenticatedContainer) {
+        authContainer.style.display = 'flex';
+        authenticatedContainer.style.display = 'none';
+      }
+      
+      // Clear PAT input
+      const patInput = document.getElementById('github-pat-input');
+      if (patInput) {
+        patInput.value = '';
+        // Trigger input event to update button state
+        patInput.dispatchEvent(new Event('input'));
+      }
+      
+      hideGitHubAuthStatus();
+    }
+
+    // Switch to authenticated UI state
+    function showGitHubAuthenticatedState(username) {
+      const authContainer = document.getElementById('github-auth-container');
+      const authenticatedContainer = document.getElementById('github-authenticated-container');
+      const usernameSpan = document.getElementById('github-username');
+      
+      if (authContainer && authenticatedContainer) {
+        authContainer.style.display = 'none';
+        authenticatedContainer.style.display = 'flex';
+      }
+      
+      if (usernameSpan && username) {
+        usernameSpan.textContent = username;
+      }
+      
+      hideGitHubAuthStatus();
+    }
+
+    // Switch to GitHub tab
+    function switchToGitHubTab() {
+      const githubTabButton = document.querySelector('[data-target="github-view"]');
+      if (githubTabButton) {
+        githubTabButton.click();
+      }
+    }
+
+    // Setup GitHub export modal functionality
+    function setupGitHubExportModal() {
+      const exportButton = document.getElementById('export-github-btn');
+      const stylesExportButton = document.getElementById('styles-export-github-btn');
+      const modalOverlay = document.getElementById('export-github-modal-overlay');
+      const modalCloseBtn = document.getElementById('export-modal-close-btn');
+      const modalTitle = document.getElementById('modal-title');
+      
+      // Form elements
+      const repoSelect = document.getElementById('github-repo-select');
+      const newRepoInput = document.getElementById('github-new-repo-name');
+      const branchSelect = document.getElementById('github-branch-select');
+      const newBranchInput = document.getElementById('github-new-branch-name');
+      const fileSelect = document.getElementById('github-file-select');
+      const fileNameInput = document.getElementById('github-file-name');
+      
+      // Export button and status
+      const modalExportBtn = document.getElementById('modal-export-button');
+      const modalStatus = document.getElementById('export-modal-status');
+      
+      // Common function to handle export button clicks
+      function handleExportButtonClick() {
+        // Check if there's valid data to export before opening modal
+        const data = getActiveCodeTabData();
+        if (!data) {
+          // Show context-appropriate toast message
+          const activeMainTab = document.querySelector('.tab-wrapper .tab-button.active');
+          const isStylesTab = activeMainTab && activeMainTab.getAttribute('data-target') === 'styles-view';
+          const message = isStylesTab ? 'Select a style first from the tree' : 'Select a variable first from the tree';
+          showGlobalToast(message, 'error');
+          return;
+        }
+
+        // Update modal title with current active tab
+        const activeTabName = getCurrentActiveTabName();
+        modalTitle.textContent = `Export selected "${activeTabName}" code to Github`;
+        
+        // Update file name placeholder based on active tab
+        const fileExtension = getFileExtensionForTab(activeTabName);
+        fileNameInput.placeholder = `filename.${fileExtension}, use / for folders`;
+        
+        // Reset form
+        resetModalForm();
+        
+        // Show modal
+        modalOverlay.style.display = 'flex';
+        
+        // Check GitHub auth and load repos if authenticated
+        checkGitHubAuthForExport();
+      }
+      
+      // Show modal when Variables export button is clicked
+      if (exportButton) {
+        exportButton.addEventListener('click', handleExportButtonClick);
+      }
+      
+      // Show modal when Styles export button is clicked
+      if (stylesExportButton) {
+        stylesExportButton.addEventListener('click', handleExportButtonClick);
+      }
+
+      // Close modal
+      modalCloseBtn.addEventListener('click', () => {
+        modalOverlay.style.display = 'none';
+      });
+
+      // Close modal when clicking overlay
+      modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+          modalOverlay.style.display = 'none';
+        }
+      });
+
+      // Repository selection handling
+      repoSelect.addEventListener('change', () => {
+        const isCreateNew = repoSelect.value === '__CREATE_NEW__';
+        newRepoInput.style.display = isCreateNew ? 'block' : 'none';
+        
+        // Reset dependent fields when repo changes
+        resetDependentFields();
+        
+        if (!isCreateNew && repoSelect.value) {
+          // Load branches for selected repo and enable branch select
+          branchSelect.disabled = false;
+          loadBranchesForRepo(repoSelect.value);
+        } else if (isCreateNew && newRepoInput.value.trim()) {
+          // Enable branch select for new repo
+          branchSelect.disabled = false;
+          clearBranchOptions();
+        } else {
+          // No repo selected, disable branch and file selects
+          branchSelect.disabled = true;
+          fileSelect.disabled = true;
+          clearBranchOptions();
+          clearFileOptions();
+        }
+        
+        updateExportButtonState();
+      });
+
+      // Branch selection handling
+      branchSelect.addEventListener('change', () => {
+        const isCreateNew = branchSelect.value === '__CREATE_NEW__';
+        newBranchInput.style.display = isCreateNew ? 'block' : 'none';
+        
+        // Reset file selection when branch changes
+        fileSelect.value = '';
+        fileNameInput.value = '';
+        
+        if (!isCreateNew && branchSelect.value && repoSelect.value && repoSelect.value !== '__CREATE_NEW__') {
+          // Load files for selected repo/branch and enable file select
+          fileSelect.disabled = false;
+          loadFilesForBranch(repoSelect.value, branchSelect.value);
+        } else if (isCreateNew || branchSelect.value) {
+          // Enable file select for new branch or when branch is selected
+          fileSelect.disabled = false;
+          clearFileOptions();
+        } else {
+          // No branch selected, disable file select
+          fileSelect.disabled = true;
+          clearFileOptions();
+        }
+        
+        updateExportButtonState();
+      });
+
+      // File selection handling
+      fileSelect.addEventListener('change', () => {
+        const isCreateNew = fileSelect.value === '__CREATE_NEW__';
+        
+        if (isCreateNew) {
+          // Show file name input when creating new file
+          fileNameInput.style.display = 'block';
+          fileNameInput.value = ''; // Clear any previous value
+          
+          // Update placeholder to show folder support
+          const activeTabName = getCurrentActiveTabName();
+          const fileExtension = getFileExtensionForTab(activeTabName);
+          fileNameInput.placeholder = `filename.${fileExtension}, use / for folders`;
+        } else {
+          // Hide file name input when selecting existing file
+          fileNameInput.style.display = 'none';
+          if (fileSelect.value && fileSelect.value !== '__CREATE_NEW__') {
+            // Store selected filename for later use in export
+            fileNameInput.value = fileSelect.value;
+          } else {
+            fileNameInput.value = '';
+          }
+        }
+        
+        updateExportButtonState();
+      });
+
+      // File name input handling
+      fileNameInput.addEventListener('input', () => {
+        updateExportButtonState();
+      });
+
+      // New repo name input handling
+      newRepoInput.addEventListener('input', () => {
+        // When user types in new repo name, enable branch select
+        if (newRepoInput.value.trim()) {
+          branchSelect.disabled = false;
+          populateDefaultBranchesForNewRepo();
+        } else {
+          branchSelect.disabled = true;
+          fileSelect.disabled = true;
+          clearBranchOptions();
+          clearFileOptions();
+        }
+        updateExportButtonState();
+      });
+
+      // New branch name input handling
+      newBranchInput.addEventListener('input', () => {
+        // When user types in new branch name, enable file select
+        if (newBranchInput.value.trim()) {
+          fileSelect.disabled = false;
+          clearFileOptions();
+        } else {
+          fileSelect.disabled = true;
+          clearFileOptions();
+        }
+        updateExportButtonState();
+      });
+
+      // Final export button
+      modalExportBtn.addEventListener('click', () => {
+        handleExportSubmission();
+      });
+
+      // Helper functions
+      function getCurrentActiveTabName() {
+        // First, determine which main tab is currently active
+        const activeMainTab = document.querySelector('.tab-wrapper .tab-button.active');
+        if (!activeMainTab) return 'JSON';
+        
+        const activeMainTabTarget = activeMainTab.getAttribute('data-target');
+        
+        // Now look for the active output tab within the specific view
+        let activeTab;
+        if (activeMainTabTarget === 'variables-view') {
+          // Look for active tab within variables view
+          activeTab = document.querySelector('#variables-view #output-area-header .tab-button-group .tab-button.active');
+        } else if (activeMainTabTarget === 'styles-view') {
+          // Look for active tab within styles view
+          activeTab = document.querySelector('#styles-view #output-area-header .tab-button-group .tab-button.active');
+        } else {
+          // Not in Variables or Styles view
+          return 'JSON';
+        }
+        
+        if (!activeTab) return 'JSON';
+        
+        const targetId = activeTab.getAttribute('data-target');
+        switch (targetId) {
+          case 'json-code-content': return 'JSON';
+          case 'js-code-content': return 'JS';
+          case 'css-code-content': return 'CSS';
+          case 'tailwind-code-content': return 'Tailwind';
+          case 'styles-js-code-content': return 'JS';
+          case 'styles-css-code-content': return 'CSS';
+          default: return 'JSON';
+        }
+      }
+
+      function getFileExtensionForTab(tabName) {
+        switch (tabName.toLowerCase()) {
+          case 'json': return 'json';
+          case 'js': return 'js';
+          case 'css': return 'css';
+          case 'tailwind': return 'js'; // tailwind config is typically .js
+          default: return 'json';
+        }
+      }
+
+      function resetModalForm() {
+        repoSelect.value = '';
+        branchSelect.value = '';
+        fileSelect.value = '';
+        fileNameInput.value = '';
+        newRepoInput.value = '';
+        newBranchInput.value = '';
+        newRepoInput.style.display = 'none';
+        newBranchInput.style.display = 'none';
+        fileNameInput.style.display = 'none'; // Hide file name input initially
+        
+        // Clear status and disable export button
+        showModalStatus('', 'info');
+        modalExportBtn.disabled = true;
+        
+        // Initialize field dependencies - only repo should be enabled
+        branchSelect.disabled = true;
+        fileSelect.disabled = true;
+        
+        // Clear options except for create new
+        clearBranchOptions();
+        clearFileOptions();
+      }
+
+      function resetDependentFields() {
+        // Reset branch selection
+        branchSelect.value = '';
+        newBranchInput.value = '';
+        newBranchInput.style.display = 'none';
+        
+        // Reset file selection
+        fileSelect.value = '';
+        fileNameInput.value = '';
+        fileNameInput.style.display = 'none'; // Hide file name input when resetting
+        
+        // Disable dependent fields
+        fileSelect.disabled = true;
+        
+        // Clear options
+        clearBranchOptions();
+        clearFileOptions();
+      }
+
+      function clearBranchOptions() {
+        branchSelect.innerHTML = '<option value="" disabled selected>Select your Branch</option><option value="__CREATE_NEW__">Create new branch...</option>';
+      }
+
+      function clearFileOptions() {
+        fileSelect.innerHTML = '<option value="" disabled selected>Select your File</option><option value="__CREATE_NEW__">Create new file...</option>';
+      }
+
+      function updateExportButtonState() {
+        const hasRepo = repoSelect.value && (repoSelect.value !== '__CREATE_NEW__' || newRepoInput.value.trim());
+        const hasBranch = branchSelect.value && (branchSelect.value !== '__CREATE_NEW__' || newBranchInput.value.trim());
+        
+        // Check file name based on selection type
+        let hasFileName = false;
+        if (fileSelect.value === '__CREATE_NEW__') {
+          // Creating new file - need input field to have value
+          hasFileName = fileNameInput.value.trim() !== '';
+        } else if (fileSelect.value && fileSelect.value !== '') {
+          // Existing file selected
+          hasFileName = true;
+        }
+        
+        modalExportBtn.disabled = !(hasRepo && hasBranch && hasFileName);
+      }
+
+      function checkGitHubAuthForExport() {
+        showModalStatus('Checking GitHub authentication...', 'info', false);
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'CHECK_GITHUB_AUTH_FOR_MODAL'
+          } 
+        }, '*');
+      }
+
+      function loadRepositories() {
+        showModalStatus('Loading repositories', 'info', false);
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'GET_GITHUB_REPOS'
+          } 
+        }, '*');
+      }
+
+      function loadBranchesForRepo(repoName) {
+        showModalStatus('Loading branches', 'info', false);
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'GET_GITHUB_BRANCHES',
+            payload: { repo: repoName }
+          } 
+        }, '*');
+      }
+
+      function loadFilesForBranch(repoName, branchName) {
+        showModalStatus('Loading files', 'info', false);
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'GET_GITHUB_FILES',
+            payload: { repo: repoName, branch: branchName }
+          } 
+        }, '*');
+      }
+
+      function handleExportSubmission() {
+        // Get current tab data
+        const currentTabData = window.getActiveCodeTabData();
+        if (!currentTabData) {
+          // Show context-appropriate error message
+          const activeMainTab = document.querySelector('.tab-wrapper .tab-button.active');
+          const isStylesTab = activeMainTab && activeMainTab.getAttribute('data-target') === 'styles-view';
+          const message = isStylesTab ? 'No content to export. Please select some styles first.' : 'No content to export. Please select some variables first.';
+          showModalStatus(message, 'error', true, 4000);
+          return;
+        }
+
+        // Determine file name based on selection type
+        let fileName;
+        if (fileSelect.value === '__CREATE_NEW__') {
+          fileName = fileNameInput.value.trim();
+        } else {
+          fileName = fileSelect.value;
+        }
+
+        // Prepare export data
+        const exportData = {
+          repository: repoSelect.value === '__CREATE_NEW__' ? newRepoInput.value.trim() : repoSelect.value,
+          branch: branchSelect.value === '__CREATE_NEW__' ? newBranchInput.value.trim() : branchSelect.value,
+          fileName: fileName,
+          content: currentTabData.content,
+          isNewRepo: repoSelect.value === '__CREATE_NEW__',
+          isNewBranch: branchSelect.value === '__CREATE_NEW__',
+          contentType: currentTabData.type
+        };
+
+        showModalStatus('Exporting to GitHub', 'info', false);
+        modalExportBtn.disabled = true;
+
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'EXPORT_TO_GITHUB',
+            payload: exportData
+          } 
+        }, '*');
+      }
+
+      // Track toast timeout for clearing
+      let modalStatusTimeout = null;
+
+      function showModalStatus(message, type = 'info', autoHide = true, duration = 3000) {
+        // Clear any existing timeout
+        if (modalStatusTimeout) {
+          clearTimeout(modalStatusTimeout);
+          modalStatusTimeout = null;
+        }
+
+        // Set the message and type
+        modalStatus.textContent = message;
+        modalStatus.className = `modal-status ${type}`;
+        
+        // Show the toast if there's a message
+        if (message && message.trim() !== '') {
+          // Add show class to trigger animation
+          modalStatus.classList.add('show');
+          
+          // Auto-hide after duration if autoHide is true
+          if (autoHide) {
+            modalStatusTimeout = setTimeout(() => {
+              hideModalStatus();
+            }, duration);
+          }
+        } else {
+          // Hide immediately if no message
+          hideModalStatus();
+        }
+      }
+
+      function hideModalStatus() {
+        // Clear any pending timeout
+        if (modalStatusTimeout) {
+          clearTimeout(modalStatusTimeout);
+          modalStatusTimeout = null;
+        }
+        
+        // Remove show class to trigger hide animation
+        modalStatus.classList.remove('show');
+      }
+
+      // Add message handlers for modal-specific responses
+      window.addEventListener('message', (event) => {
+        const msg = event.data.pluginMessage;
+        if (!msg) return;
+
+        switch (msg.type) {
+          case 'GITHUB_AUTH_SUCCESS_FOR_MODAL':
+            hideModalStatus();
+            loadRepositories();
+            break;
+            
+          case 'GITHUB_AUTH_REQUIRED_FOR_MODAL':
+            showModalStatus('Please authenticate with GitHub first.', 'error', true, 4000);
+            setTimeout(() => {
+              modalOverlay.style.display = 'none';
+              switchToGitHubTab();
+            }, 2000);
+            break;
+            
+          case 'GITHUB_REPOS_LOADED':
+            populateRepositories(msg.payload.repos);
+            hideModalStatus();
+            break;
+            
+          case 'GITHUB_BRANCHES_LOADED':
+            populateBranches(msg.payload.branches);
+            hideModalStatus();
+            break;
+            
+          case 'GITHUB_FILES_LOADED':
+            populateFiles(msg.payload.files);
+            hideModalStatus();
+            break;
+            
+          case 'GITHUB_EXPORT_SUCCESS':
+            showModalStatus('Successfully exported to GitHub!', 'success', true, 2000);
+            modalExportBtn.disabled = false;
+            setTimeout(() => {
+              modalOverlay.style.display = 'none';
+            }, 2000);
+            break;
+            
+          case 'GITHUB_EXPORT_ERROR':
+            showModalStatus(msg.payload.error || 'Export failed. Please try again.', 'error', true, 5000);
+            modalExportBtn.disabled = false;
+            break;
+            
+          case 'GITHUB_API_ERROR':
+            showModalStatus(msg.payload.error || 'GitHub API error. Please try again.', 'error', true, 5000);
+            modalExportBtn.disabled = false;
+            break;
+        }
+      });
+
+      function populateRepositories(repos) {
+        const repoSelect = document.getElementById('github-repo-select');
+        if (!repoSelect) return;
+        
+        repoSelect.innerHTML = '<option value="" disabled selected>Select your repo</option>';
+        repos.forEach(repo => {
+          const option = document.createElement('option');
+          option.value = repo.name;
+          option.textContent = repo.name;
+          repoSelect.appendChild(option);
+        });
+        repoSelect.innerHTML += '<option value="__CREATE_NEW__">Create new repository</option>';
+      }
+
+      function populateBranches(branches) {
+        const branchSelect = document.getElementById('github-branch-select');
+        if (!branchSelect) return;
+        
+        branchSelect.innerHTML = '<option value="" disabled selected>Select your Branch</option>';
+        branches.forEach(branch => {
+          const option = document.createElement('option');
+          option.value = branch.name;
+          option.textContent = branch.name;
+          branchSelect.appendChild(option);
+        });
+        branchSelect.innerHTML += '<option value="__CREATE_NEW__">Create new branch</option>';
+      }
+
+      function populateFiles(files) {
+        const fileSelect = document.getElementById('github-file-select');
+        if (!fileSelect) return;
+        
+        fileSelect.innerHTML = '<option value="" disabled selected>Select your File</option>';
+        
+        // Sort files alphabetically by their full path
+        const sortedFiles = files.sort((a, b) => a.path.localeCompare(b.path));
+        
+        sortedFiles.forEach(file => {
+          const option = document.createElement('option');
+          option.value = file.path; // Use full path as value
+          option.textContent = file.path; // Show full path including folders
+          fileSelect.appendChild(option);
+        });
+        
+        fileSelect.innerHTML += '<option value="__CREATE_NEW__">Create new file...</option>';
+      }
+
+      function populateDefaultBranchesForNewRepo() {
+        branchSelect.innerHTML = '<option value="" disabled selected>Select your Branch</option><option value="main">main</option><option value="__CREATE_NEW__">Create new branch...</option>';
+      }
+    }
+
+    // Track global toast timeout for clearing
+    let globalToastTimeout = null;
+
+    function showGlobalToast(message, type = 'info', duration = 3000) {
+      // Get or create the global toast element
+      let toast = document.getElementById('global-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'global-toast';
+        toast.className = 'global-toast';
+        document.body.appendChild(toast);
+      }
+
+        // Clear any existing timeout
+      if (globalToastTimeout) {
+        clearTimeout(globalToastTimeout);
+        globalToastTimeout = null;
+        }
+
+        // Set the message and type
+      toast.textContent = message;
+      toast.className = `global-toast ${type}`;
+      
+      // Show the toast
+      toast.classList.add('show');
+      
+      // Auto-hide after duration
+      globalToastTimeout = setTimeout(() => {
+        hideGlobalToast();
+            }, duration);
+      }
+
+    function hideGlobalToast() {
+      const toast = document.getElementById('global-toast');
+      if (toast) {
+        // Clear any pending timeout
+        if (globalToastTimeout) {
+          clearTimeout(globalToastTimeout);
+          globalToastTimeout = null;
+        }
+        
+        // Remove show class to trigger hide animation
+        toast.classList.remove('show');
+      }
+    }
+
+    // Generate filtered styles payload based on checkbox selections
+    function generateFilteredStylesPayload() {
+      if (!originalStylesPayload) {
+        return {}; // Safety check
+      }
+
+      const filteredOutput = {};
+      
+      // Process each top-level style category
+      for (const categoryName of Object.keys(originalStylesPayload)) {
+        // Process this category recursively
+        const filteredCategory = processStylesNodeRecursively(
+          originalStylesPayload[categoryName],
+          [categoryName]
+        );
+        
+        // Only add non-null results to the output
+        if (filteredCategory !== null) {
+          filteredOutput[categoryName] = filteredCategory;
+        }
+      }
+      
+      return filteredOutput;
+    }
+    
+    /**
+     * Recursively processes a styles node and its children based on checkbox states
+     * @param {Object} nodeData - The data for this node from the original styles payload
+     * @param {Array} path - Array of strings representing the path to this node
+     * @returns {Object|null} - Filtered data or null if this node should be excluded
+     */
+    function processStylesNodeRecursively(nodeData, path) {
+      // Get the checkbox for this node
+      const checkbox = findCheckboxByPath(path);
+      
+      // If checkbox doesn't exist or is unchecked, exclude this branch
+      if (!checkbox || (!checkbox.checked && !checkbox.indeterminate)) {
+        return null;
+      }
+      
+      // If this node is a style (has an id property)
+      if (nodeData && typeof nodeData === 'object' && nodeData.id) {
+        // For style nodes, only include if explicitly checked
+        return checkbox.checked ? JSON.parse(JSON.stringify(nodeData)) : null;
+      }
+      
+      // If the checkbox is checked (not just indeterminate), include the entire subtree
+      if (checkbox.checked) {
+        return JSON.parse(JSON.stringify(nodeData));
+      }
+      
+      // For indeterminate state, we need to selectively include children
+      if (checkbox.indeterminate && typeof nodeData === 'object') {
+        const result = {};
+        let hasSelectedChildren = false;
+        
+        // Process each child
+        for (const childName of Object.keys(nodeData)) {
+          const childPath = [...path, childName];
+          const filteredChild = processStylesNodeRecursively(nodeData[childName], childPath);
+          
+          // Only include non-null results
+          if (filteredChild !== null) {
+            result[childName] = filteredChild;
+            hasSelectedChildren = true;
+          }
+        }
+        
+        // Return the result if it has any selected children, otherwise null
+        return hasSelectedChildren ? result : null;
+      }
+      
+      // Default fallback
+      return null;
+    }
+
+    // Make getActiveCodeTabData globally accessible for the export modal
+    window.getActiveCodeTabData = getActiveCodeTabData;
+
+    // Global test function for logout debugging
+    window.testLogout = function() {
+      console.log('Manual logout test - sending LOGOUT_USER message');
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'LOGOUT_USER'
+        } 
+      }, '*');
+    };
+
+    // Global function to manually show auth lock (for testing)
+    window.testShowAuthLock = function() {
+      console.log('Manual auth lock test');
+      showAuthLock();
+    };
+
+    // REM Settings Functions
+    function setupRemSettings() {
+      const remToggle = document.getElementById('rem-toggle');
+      const baseFontSizeInput = document.getElementById('base-font-size');
+      const baseFontSizeContainer = document.getElementById('base-font-size-container');
+      const logoutButton = document.getElementById('logout-button');
+
+      // Toggle switch event listener
+      remToggle.addEventListener('change', function() {
+        const useRem = this.checked;
+        const baseFontSize = parseInt(baseFontSizeInput.value) || 16;
+
+        // Update UI state
+        updateBaseFontSizeVisibility(useRem);
+
+        // Send update to plugin
+        parent.postMessage({ 
+          pluginMessage: { 
+            type: 'UPDATE_REM_SETTING',
+            payload: { 
+              useRem: useRem, 
+              baseFontSize: baseFontSize 
+            }
+          } 
+        }, '*');
+      });
+
+      // Base font size input event listener
+      baseFontSizeInput.addEventListener('change', function() {
+        const baseFontSize = parseInt(this.value) || 16;
+        const useRem = remToggle.checked;
+
+        // Only send update if REM is enabled
+        if (useRem) {
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'UPDATE_REM_SETTING',
+              payload: { 
+                useRem: useRem, 
+                baseFontSize: baseFontSize 
+              }
+            } 
+          }, '*');
+        }
+      });
+
+      // Logout button event listener
+      if (logoutButton) {
+        console.log('Logout button found, adding event listener');
+        logoutButton.addEventListener('click', function() {
+          console.log('Logout button clicked - sending LOGOUT_USER message');
+          // Send logout request to plugin
+          parent.postMessage({ 
+            pluginMessage: { 
+              type: 'LOGOUT_USER'
+            } 
+          }, '*');
+        });
+      } else {
+        console.log('Logout button not found');
+        // Fallback: try to find it with a delay
+        setTimeout(() => {
+          const fallbackLogoutButton = document.getElementById('logout-button');
+          if (fallbackLogoutButton) {
+            console.log('Logout button found with fallback, adding event listener');
+            fallbackLogoutButton.addEventListener('click', function() {
+              console.log('Logout button clicked (fallback) - sending LOGOUT_USER message');
+              parent.postMessage({ 
+                pluginMessage: { 
+                  type: 'LOGOUT_USER'
+                } 
+              }, '*');
+            });
+          } else {
+            console.log('Logout button still not found with fallback');
+          }
+        }, 1000);
+      }
+
+      // Request initial settings from plugin
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'REQUEST_REM_SETTINGS'
+        } 
+      }, '*');
+    }
+
+    function updateRemSettingsUI(useRemUnits, remBaseFontSize) {
+      const remToggle = document.getElementById('rem-toggle');
+      const baseFontSizeInput = document.getElementById('base-font-size');
+
+      // Update toggle state
+      remToggle.checked = useRemUnits;
+
+      // Update base font size input
+      baseFontSizeInput.value = remBaseFontSize;
+
+      // Update visibility
+      updateBaseFontSizeVisibility(useRemUnits);
+    }
+
+    function updateBaseFontSizeVisibility(isEnabled) {
+      const baseFontSizeContainer = document.getElementById('base-font-size-container');
+      
+      if (isEnabled) {
+        baseFontSizeContainer.classList.add('enabled');
+      } else {
+        baseFontSizeContainer.classList.remove('enabled');
+      }
+    }
+
+    // UI State Preservation and Restoration Functions
+    let savedUIState = null;
+
+    function saveCurrentUIState() {
+      try {
+        const state = {
+          // Save checkbox states for variables
+          variableCheckboxes: {},
+          variableExpandedItems: {},
+          
+          // Save checkbox states for styles
+          styleCheckboxes: {},
+          styleExpandedItems: {},
+          
+          // Save active tabs
+          activeMainTab: null,
+          activeOutputTab: null,
+          
+          // Save current view
+          timestamp: Date.now()
+        };
+
+        // Get active main tab
+        const activeMainTab = document.querySelector('.tab-wrapper .tab-button.active');
+        if (activeMainTab) {
+          state.activeMainTab = activeMainTab.getAttribute('data-target');
+        }
+
+        // Get active output tab
+        const activeOutputTab = document.querySelector('.output-tab-button.active');
+        if (activeOutputTab) {
+          state.activeOutputTab = activeOutputTab.getAttribute('data-target');
+        }
+
+        // Save variable checkbox states
+        const variableCheckboxes = document.querySelectorAll('#variables-tree input[type="checkbox"]');
+        variableCheckboxes.forEach(checkbox => {
+          const path = checkbox.getAttribute('data-path');
+          if (path) {
+            state.variableCheckboxes[path] = {
+              checked: checkbox.checked,
+              indeterminate: checkbox.indeterminate
+            };
+          }
+        });
+
+        // Save variable expanded states
+        const variableItems = document.querySelectorAll('#variables-tree .checkbox-item');
+        variableItems.forEach(item => {
+          const li = item.closest('li');
+          if (li && li.classList.contains('expanded')) {
+            const path = li.querySelector('input[type="checkbox"]')?.getAttribute('data-path');
+            if (path) {
+              state.variableExpandedItems[path] = true;
+            }
+          }
+        });
+
+        // Save style checkbox states
+        const styleCheckboxes = document.querySelectorAll('#styles-tree input[type="checkbox"]');
+        styleCheckboxes.forEach(checkbox => {
+          const path = checkbox.getAttribute('data-path');
+          if (path) {
+            state.styleCheckboxes[path] = {
+              checked: checkbox.checked,
+              indeterminate: checkbox.indeterminate
+            };
+          }
+        });
+
+        // Save style expanded states
+        const styleItems = document.querySelectorAll('#styles-tree .checkbox-item');
+        styleItems.forEach(item => {
+          const li = item.closest('li');
+          if (li && li.classList.contains('expanded')) {
+            const path = li.querySelector('input[type="checkbox"]')?.getAttribute('data-path');
+            if (path) {
+              state.styleExpandedItems[path] = true;
+            }
+          }
+        });
+
+        savedUIState = state;
+        console.log('UI state saved:', state);
+
+      } catch (error) {
+        console.error('Error saving UI state:', error);
+        savedUIState = null;
+      }
+    }
+
+    function handleDataRefreshWithStateRestore(payload) {
+      try {
+        // Update the original payloads
+        originalDtcgPayload = payload.dtcgPayload;
+        originalStylesPayload = payload.stylesPayload;
+
+        // Render the new data
+        renderCheckboxTree(payload.dtcgPayload);
+        renderStylesCheckboxTree(payload.stylesPayload);
+
+        // Restore UI state after a short delay to ensure DOM is ready
+        setTimeout(() => {
+          restoreUIState();
+        }, 100);
+
+      } catch (error) {
+        console.error('Error handling data refresh:', error);
+      }
+    }
+
+    function handleDataRefreshWithCleanReset(payload) {
+      try {
+        console.log('Performing clean reset with new data...');
+        
+        // Update the original payloads
+        originalDtcgPayload = payload.dtcgPayload;
+        originalStylesPayload = payload.stylesPayload;
+
+        // Render the new data (this will create fresh trees with no selections)
+        renderCheckboxTree(payload.dtcgPayload);
+        renderStylesCheckboxTree(payload.stylesPayload);
+
+        // Clear all code output views
+        clearCodeViews();
+        
+        // Clear any saved state
+        savedUIState = null;
+        
+        console.log('Clean reset completed - all selections cleared');
+
+      } catch (error) {
+        console.error('Error handling clean data refresh:', error);
+      }
+    }
+
+    function restoreUIState() {
+      if (!savedUIState) {
+        console.log('No saved UI state to restore');
+        return;
+      }
+
+      try {
+        console.log('Restoring UI state:', savedUIState);
+
+        // Restore main tab
+        if (savedUIState.activeMainTab) {
+          const mainTabButton = document.querySelector(`[data-target="${savedUIState.activeMainTab}"]`);
+          if (mainTabButton) {
+            mainTabButton.click();
+          }
+        }
+
+        // Restore output tab
+        if (savedUIState.activeOutputTab) {
+          const outputTabButton = document.querySelector(`[data-target="${savedUIState.activeOutputTab}"]`);
+          if (outputTabButton) {
+            outputTabButton.click();
+          }
+        }
+
+        // FIRST: Restore expanded states to ensure checkboxes are visible
+        Object.keys(savedUIState.variableExpandedItems).forEach(path => {
+          const checkbox = document.querySelector(`#variables-tree input[data-path="${path}"]`);
+          if (checkbox) {
+            const li = checkbox.closest('li');
+            if (li) {
+              li.classList.add('expanded');
+            }
+          }
+        });
+
+        Object.keys(savedUIState.styleExpandedItems).forEach(path => {
+          const checkbox = document.querySelector(`#styles-tree input[data-path="${path}"]`);
+          if (checkbox) {
+            const li = checkbox.closest('li');
+            if (li) {
+              li.classList.add('expanded');
+            }
+          }
+        });
+
+        // SECOND: Restore checkbox states (now that parents are expanded)
+        Object.keys(savedUIState.variableCheckboxes).forEach(path => {
+          const checkbox = document.querySelector(`#variables-tree input[data-path="${path}"]`);
+          if (checkbox) {
+            const state = savedUIState.variableCheckboxes[path];
+            checkbox.checked = state.checked;
+            checkbox.indeterminate = state.indeterminate;
+          }
+        });
+
+        Object.keys(savedUIState.styleCheckboxes).forEach(path => {
+          const checkbox = document.querySelector(`#styles-tree input[data-path="${path}"]`);
+          if (checkbox) {
+            const state = savedUIState.styleCheckboxes[path];
+            checkbox.checked = state.checked;
+            checkbox.indeterminate = state.indeterminate;
+          }
+        });
+
+        // THIRD: Manually update parent checkbox states based on children
+        updateParentCheckboxStatesManually('#variables-tree');
+        updateParentCheckboxStatesManually('#styles-tree');
+
+        // FOURTH: Generate code based on restored selections
+        setTimeout(() => {
+          generateCodeFromCurrentSelections();
+        }, 100);
+
+        console.log('UI state restoration completed');
+
+      } catch (error) {
+        console.error('Error restoring UI state:', error);
+      } finally {
+        // Clear the saved state after restoration
+        savedUIState = null;
+      }
+    }
+
+    function updateParentCheckboxStatesManually(treeSelector) {
+      // Get all checkboxes in the tree
+      const allCheckboxes = document.querySelectorAll(`${treeSelector} input[type="checkbox"]`);
+      
+      // Process from bottom up to ensure parents are updated after children
+      const checkboxArray = Array.from(allCheckboxes);
+      
+      // Sort by depth (deeper elements first) to process children before parents
+      checkboxArray.sort((a, b) => {
+        const aDepth = a.getAttribute('data-path').split('.').length;
+        const bDepth = b.getAttribute('data-path').split('.').length;
+        return bDepth - aDepth; // Higher depth first
+      });
+      
+      checkboxArray.forEach(checkbox => {
+        updateParentCheckbox(checkbox);
+      });
+    }
+
+    function generateCodeFromCurrentSelections() {
+      try {
+        // Determine which tab is active and generate appropriate code
+        const activeMainTab = document.querySelector('.tab-wrapper .tab-button.active');
+        if (!activeMainTab) {
+          console.log('No active main tab found');
+          return;
+        }
+
+        const activeTabTarget = activeMainTab.getAttribute('data-target');
+        console.log('Generating code for active tab:', activeTabTarget);
+
+        if (activeTabTarget === 'variables-view') {
+          // Generate variables code
+          console.log('Generating variables code...');
+          
+          // Check if we have any selected variables
+          const selectedVariableCheckboxes = document.querySelectorAll('#variables-tree input[type="checkbox"]:checked');
+          console.log('Found selected variable checkboxes:', selectedVariableCheckboxes.length);
+          
+          if (selectedVariableCheckboxes.length > 0) {
+            const selectedPayload = generateFilteredPayload();
+            console.log('Generated filtered payload:', selectedPayload);
+            updateJsonView(selectedPayload);
+            requestGeneratedCode();
+          } else {
+            console.log('No variable checkboxes selected, clearing views');
+            // Clear the views if nothing is selected
+            clearCodeViews();
+          }
+          
+        } else if (activeTabTarget === 'styles-view') {
+          // Generate styles code
+          console.log('Generating styles code...');
+          
+          // Check if we have any selected styles
+          const selectedStyleCheckboxes = document.querySelectorAll('#styles-tree input[type="checkbox"]:checked');
+          console.log('Found selected style checkboxes:', selectedStyleCheckboxes.length);
+          
+          if (selectedStyleCheckboxes.length > 0) {
+            const selectedStylesPayload = generateFilteredStylesPayload();
+            console.log('Generated filtered styles payload:', selectedStylesPayload);
+            updateJsonView(selectedStylesPayload, true); // true indicates styles
+            requestGeneratedStylesCode();
+          } else {
+            console.log('No style checkboxes selected, clearing views');
+            // Clear the views if nothing is selected
+            clearCodeViews();
+          }
+        }
+        
+        console.log('Code generation completed for current selections');
+        
+      } catch (error) {
+        console.error('Error in generateCodeFromCurrentSelections:', error);
+      }
+    }
+
+    function clearCodeViews() {
+      // Clear JSON view
+      const jsonViewer = document.querySelector('#json-code-content .json-viewer');
+      const jsonMessage = document.querySelector('#json-initial-message');
+      if (jsonViewer && jsonMessage) {
+        jsonViewer.style.display = 'none';
+        jsonViewer.textContent = '';
+        jsonMessage.style.display = 'block';
+      }
+      
+      // Clear other code views
+      const codeContents = ['js-code-content', 'css-code-content', 'tailwind-code-content'];
+      codeContents.forEach(contentId => {
+        const contentEl = document.getElementById(contentId);
+        if (contentEl) {
+          contentEl.innerHTML = VARIABLES_PLACEHOLDER_HTML;
+        }
+      });
+    }
+
+    function requestGeneratedCode() {
+      // Request all code types for variables
+      parent.postMessage({ pluginMessage: { type: 'request-js-code' } }, '*');
+      parent.postMessage({ pluginMessage: { type: 'request-css-code' } }, '*');
+      parent.postMessage({ pluginMessage: { type: 'request-tailwind-code' } }, '*');
+    }
+
+    function requestGeneratedStylesCode() {
+      // Request code generation for styles
+      const filteredPayload = generateFilteredStylesPayload();
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-styles-js-code',
+          payload: filteredPayload
+        } 
+      }, '*');
+      parent.postMessage({ 
+        pluginMessage: { 
+          type: 'request-styles-css-code',
+          payload: filteredPayload
+        } 
+      }, '*');
+    }
   </script>
+
+  <!-- Export to GitHub Modal -->
+  <div id="export-github-modal-overlay" class="modal-overlay" style="display: none;">
+    <div id="export-github-modal" class="export-modal">
+      <!-- Modal Header -->
+      <div class="modal-header">
+        <span id="modal-title">Export selected "JSON" code to Github</span>
+        <button id="export-modal-close-btn" class="modal-close-btn">
+          <svg width="11" height="11" viewBox="0 0 6 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 1L3 3M5 5L3 3M3 3L5 1L1 5" stroke="currentColor" stroke-width="0.75"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body">
+        <!-- Repository Input Group -->
+        <div class="input-field-group">
+          <label for="github-repo-select">Repository</label>
+          <div class="modal-select-wrapper">
+            <select id="github-repo-select" class="modal-select">
+              <option value="" disabled selected>Select your repo</option>
+              <option value="__CREATE_NEW__">Create new repository</option>
+            </select>
+            <svg class="modal-select-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5L6 7.5L9 4.5" stroke="white" stroke-opacity="0.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <input type="text" id="github-new-repo-name" class="modal-input" placeholder="Enter repo name" style="display: none;">
+        </div>
+
+        <!-- Branch Input Group -->
+        <div class="input-field-group">
+          <label for="github-branch-select">Branch</label>
+          <div class="modal-select-wrapper">
+            <select id="github-branch-select" class="modal-select" disabled>
+              <!-- <option value="">Select your Branch</option> -->
+              <option value="" disabled selected>Select your Branch</option>
+              <option value="__CREATE_NEW__">Create new branch</option>
+            </select>
+            <svg class="modal-select-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5L6 7.5L9 4.5" stroke="white" stroke-opacity="0.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <input type="text" id="github-new-branch-name" class="modal-input" placeholder="Enter Branch name" style="display: none;">
+        </div>
+
+        <!-- File Input Group -->
+        <div class="input-field-group">
+          <label for="github-file-select">File</label>
+          <div class="modal-select-wrapper">
+            <select id="github-file-select" class="modal-select" disabled>
+              <option value="" disabled selected>Select your File</option>
+              <option value="__CREATE_NEW__">Create new file</option>
+            </select>
+            <svg class="modal-select-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5L6 7.5L9 4.5" stroke="white" stroke-opacity="0.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <input type="text" id="github-file-name" class="modal-input" placeholder="filename.json, use / for folders" style="display: none;">
+        </div>
+
+        <!-- Export Button -->
+        <button id="modal-export-button" class="modal-export-btn" disabled>Export</button>
+      </div>
+
+      <!-- Status Message -->
+      <div id="export-modal-status" class="modal-status"></div>
+    </div>
+  </div>
 </body>
 </html> 

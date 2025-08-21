@@ -1,7 +1,6 @@
-
 {
     "name": "toko",
-    "id": "toko",
+    "id": "1514536424978789811",
     "api": "1.0.0",
     "main": "code.js",
     "ui": "ui.html",
@@ -11,5 +10,11 @@
     "permissions": [
       "currentuser",
       "teamlibrary"
-    ]
-  } 
+    ],
+    "networkAccess": {
+      "allowedDomains": [
+        "https://api.github.com"
+      ]
+    },
+    "documentAccess": "dynamic-page"
+} 
