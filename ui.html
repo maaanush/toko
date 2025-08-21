@@ -135,6 +135,7 @@
       display: flex; /* Added for internal layout */
       flex-direction: column; /* Added for internal layout */
       gap: 12px; /* Added for internal layout */
+      position: relative; /* For loading overlay positioning */
     }
 
     #output-area {
@@ -190,15 +191,39 @@
       display: block;
     }
 
+    /* Loading overlay for variables tree */
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 12px;
+    }
+
+    .loading-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
     /* Spinner for loading state */
     .spinner {
-      width: 40px;
-      height: 40px;
-      margin: 20px auto;
-      border: 3px solid rgba(255, 255, 255, 0.3);
+      width: 24px;
+      height: 24px;
+      border: 2px solid rgba(255, 255, 255, 0.18);
       border-radius: 50%;
       border-top-color: var(--figma-color-text);
       animation: spin 1s linear infinite;
+    }
+
+    .loading-text {
+      color: var(--figma-color-text); /* Match placeholder text color */
+      font-size: 11px; /* Match base UI font size */
+      line-height: 1.4;
+      max-width: 480px;
     }
 
     @keyframes spin {
@@ -284,8 +309,12 @@
         <!-- Variables View -->
         <div class="tab-content active" id="variables-view">
           <div id="tree-area">
-            <div id="variables-tree">
-              <div class="spinner"></div>
+            <div id="variables-tree"></div>
+            <div id="variables-loading" class="loading-overlay" aria-live="polite">
+              <div class="loading-content">
+                <div class="spinner"></div>
+                <div class="loading-text" id="variables-loading-text">loading varibles</div>
+              </div>
             </div>
           </div>
           <div id="output-area">
@@ -352,6 +381,7 @@
   <script>
     // Global state
     let variablesData = null;
+    let variablesLoadingTimeoutId = null;
 
     // Document ready event
     document.addEventListener('DOMContentLoaded', function () {
@@ -388,6 +418,7 @@
         
         if (message.type === 'plugin-ready') {
           console.log('Plugin is ready, fetching variables');
+          startVariablesLoadingState();
           parent.postMessage({ pluginMessage: { type: 'fetch-variables' } }, '*');
         }
         else if (message.type === 'variables-data') {
@@ -410,8 +441,32 @@
 
     // Utility functions
     function hideSpinner() {
-      const spinner = document.querySelector('.spinner');
-      if (spinner) spinner.style.display = 'none';
+      stopVariablesLoadingState();
+    }
+
+    function startVariablesLoadingState() {
+      const loadingEl = document.getElementById('variables-loading');
+      if (loadingEl) loadingEl.style.display = 'flex';
+      const loadingTextEl = document.getElementById('variables-loading-text');
+      if (loadingTextEl) loadingTextEl.textContent = 'loading varibles';
+      if (variablesLoadingTimeoutId) {
+        clearTimeout(variablesLoadingTimeoutId);
+      }
+      variablesLoadingTimeoutId = setTimeout(() => {
+        const el = document.getElementById('variables-loading-text');
+        if (el) {
+          el.textContent = 'looks like you have a big list of variables might take upto 5 minutes to fetch all the variables';
+        }
+      }, 20000);
+    }
+
+    function stopVariablesLoadingState() {
+      if (variablesLoadingTimeoutId) {
+        clearTimeout(variablesLoadingTimeoutId);
+        variablesLoadingTimeoutId = null;
+      }
+      const loadingEl = document.getElementById('variables-loading');
+      if (loadingEl) loadingEl.style.display = 'none';
     }
 
     // Setup tabs for the output area
