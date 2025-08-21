@@ -165,6 +165,43 @@
       gap: 12px; /* Added for internal layout */
     }
 
+    /* Tree loading spinner styles */
+    #variables-tree, #styles-tree {
+      position: relative;
+    }
+    .tree-loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .tree-loading-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spinner-rotate 1s linear infinite;
+    }
+    .loading-text {
+      font-size: 11px;
+      opacity: 0.6;
+    }
+    @keyframes spinner-rotate {
+      to { transform: rotate(360deg); }
+    }
+
     /* JSON viewer styles */
     /* Output Area Header styles */
     #output-area-header {
@@ -692,7 +729,12 @@
         <div class="tab-content active" id="variables-view">
           <div id="tree-area">
             <div id="variables-tree" style= "height: 100%">
-              <div class="spinner"></div>
+              <div class="tree-loading-overlay" id="variables-tree-loading">
+                <div class="tree-loading-content">
+                  <div class="spinner"></div>
+                  <div class="loading-text" id="variables-loading-text">loading varibles</div>
+                </div>
+              </div>
             </div>
           </div>
           <div id="output-area">
@@ -746,7 +788,12 @@
         <div class="tab-content" id="styles-view">
           <div id="tree-area">
             <div id="styles-tree"style= "height: 100%" >
-              <div class="spinner"></div>
+              <div class="tree-loading-overlay" id="styles-tree-loading">
+                <div class="tree-loading-content">
+                  <div class="spinner"></div>
+                  <div class="loading-text" id="styles-loading-text">loading varibles</div>
+                </div>
+              </div>
             </div>
           </div>
           <div id="output-area">
@@ -992,6 +1039,51 @@
     // Store the original styles payload
     let originalStylesPayload = null;
     
+    // Loading overlay timers
+    let variablesLoadingTimerId = null;
+    let stylesLoadingTimerId = null;
+
+    function startTreeLoading(type) {
+      const overlayId = type === 'variables' ? 'variables-tree-loading' : 'styles-tree-loading';
+      const textId = type === 'variables' ? 'variables-loading-text' : 'styles-loading-text';
+      const overlay = document.getElementById(overlayId);
+      const textEl = document.getElementById(textId);
+      if (!overlay || !textEl) return;
+      overlay.style.display = 'flex';
+      textEl.textContent = 'loading varibles';
+      // Clear existing timer if any
+      if (type === 'variables' && variablesLoadingTimerId) {
+        clearTimeout(variablesLoadingTimerId);
+        variablesLoadingTimerId = null;
+      }
+      if (type === 'styles' && stylesLoadingTimerId) {
+        clearTimeout(stylesLoadingTimerId);
+        stylesLoadingTimerId = null;
+      }
+      const timerFn = () => {
+        textEl.textContent = 'looks like you have a big list of variables might take upto 5 minutes to fetch all the variables';
+      };
+      if (type === 'variables') {
+        variablesLoadingTimerId = setTimeout(timerFn, 20000);
+      } else {
+        stylesLoadingTimerId = setTimeout(timerFn, 20000);
+      }
+    }
+
+    function stopTreeLoading(type) {
+      const overlayId = type === 'variables' ? 'variables-tree-loading' : 'styles-tree-loading';
+      const overlay = document.getElementById(overlayId);
+      if (overlay) overlay.style.display = 'none';
+      if (type === 'variables' && variablesLoadingTimerId) {
+        clearTimeout(variablesLoadingTimerId);
+        variablesLoadingTimerId = null;
+      }
+      if (type === 'styles' && stylesLoadingTimerId) {
+        clearTimeout(stylesLoadingTimerId);
+        stylesLoadingTimerId = null;
+      }
+    }
+    
     // Document ready event
     document.addEventListener('DOMContentLoaded', function () {
       // Main tab switching logic
@@ -1051,6 +1143,10 @@
       // Setup REM settings functionality
       setupRemSettings();
 
+      // Start loading overlays for both trees initially
+      startTreeLoading('variables');
+      startTreeLoading('styles');
+
       // Simplified message handler - properly handle real data and display it
       window.onmessage = async (event) => {
         const msg = event.data.pluginMessage;
@@ -1062,11 +1158,13 @@
           // console.log("Received dtcgPayload:", msg.payload); // Removed logging
           originalDtcgPayload = msg.payload; // Store the full payload
           renderCheckboxTree(msg.payload);
+          stopTreeLoading('variables');
         } else if (msg.type === 'stylesPayload') {
           console.log("Received stylesPayload:", msg.payload);
           // Store the original styles payload
           originalStylesPayload = msg.payload;
           renderStylesCheckboxTree(msg.payload);
+          stopTreeLoading('styles');
         } else if (msg.type === 'jsCodePreview') {
           // console.log("Received jsCodePreview:", msg.payload); // Removed logging
           updateJSView(msg.payload);
